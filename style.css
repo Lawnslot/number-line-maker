@@ -1,116 +1,141 @@
 :root{
   --bg:#f3f4f6; --panel:#fff; --line:#dfe3e8; --ink:#1f2430; --sub:#6b7280;
-  --accent:#2563eb; --accent-ink:#fff; --warn:#b45309;
-  --radius:8px;
+  --accent:#2563eb; --accent-ink:#fff;
+  --radius:10px;
 }
 *{box-sizing:border-box}
-html,body{height:100%}
+[hidden]{display:none !important}
 body{
   margin:0; background:var(--bg); color:var(--ink);
   font:14px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
-  display:flex; flex-direction:column; overflow:hidden;
 }
 
 /* ---------- 上部バー ---------- */
 #topbar{
-  display:flex; align-items:center; gap:12px; padding:8px 14px;
-  background:var(--panel); border-bottom:1px solid var(--line); flex:0 0 auto; flex-wrap:wrap;
+  display:flex; align-items:center; gap:10px; padding:8px 16px;
+  background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap;
+  position:sticky; top:0; z-index:30;
 }
 #topbar h1{font-size:15px; margin:0; letter-spacing:.02em; white-space:nowrap}
-.docbar{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
-.docbar input{width:220px}
-.docbar input.narrow{width:130px}
+#topbar input{width:200px}
+#topbar input.narrow{width:110px}
 .spacer{flex:1 1 auto}
-.presets{display:flex; align-items:center; gap:6px}
-.presets label{font-size:12px; color:var(--sub)}
 
-/* ---------- レイアウト ---------- */
-main{flex:1 1 auto; display:flex; min-height:0}
-#panel{
-  width:380px; flex:0 0 380px; overflow-y:auto; background:var(--panel);
-  border-right:1px solid var(--line); padding:10px 12px 60px;
+#presetChips{display:flex; gap:5px; flex-wrap:wrap}
+#presetChips button{
+  border-radius:99px; padding:4px 11px; font-size:12px; color:var(--sub); background:#f6f7f9;
 }
-#stage{flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0}
+#presetChips button:hover{color:var(--accent); border-color:var(--accent); background:#fff}
 
-/* ---------- パネル ---------- */
-.sec{border:1px solid var(--line); border-radius:var(--radius); padding:10px; margin-bottom:12px; background:#fff}
-.sec h2{font-size:13px; margin:0 0 10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
-.sec h3{font-size:11px; color:var(--sub); margin:12px 0 6px; font-weight:600; letter-spacing:.04em}
-.badge{font-size:11px; font-weight:400; color:var(--sub); background:#f1f3f6; padding:2px 7px; border-radius:99px}
+/* ---------- 縦一列レイアウト ---------- */
+main{max-width:1150px; margin:0 auto; padding:14px 16px 60px; display:flex; flex-direction:column; gap:12px}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius)}
+
+/* ---------- 基本バー ---------- */
+#quickbar{display:flex; flex-wrap:wrap; gap:10px 16px; padding:12px 16px; align-items:flex-end}
+.field{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub); white-space:nowrap}
+.field input,.field select{width:96px}
+.field input.w-small{width:70px}
+.flabel{font-size:11px; color:var(--sub)}
+#stepHint{flex-basis:100%; margin:0; background:#f4f6fa; border-radius:5px; padding:4px 10px; display:inline-block; width:fit-content}
+
+/* ---------- 入力の共通 ---------- */
+input,select,button{font:inherit}
+input[type=number],input[type=text],input[type=search],select{
+  padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff;
+  color:var(--ink); font-size:13px; min-width:0;
+}
+input[type=color]{padding:2px; height:30px; width:60px; border:1px solid var(--line); border-radius:6px; background:#fff}
+input:focus,select:focus{outline:2px solid #bfd4fb; outline-offset:0; border-color:var(--accent)}
+button{
+  padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:#fff;
+  cursor:pointer; font-size:13px; white-space:nowrap;
+}
+button:hover{background:#f6f7f9}
+button.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+button.primary:hover{filter:brightness(1.08)}
+button.big{padding:10px 20px; font-size:14px; font-weight:600}
+button.x{border:none; background:none; font-size:16px; color:var(--sub); padding:0 4px}
+.w-tiny{width:58px}
+
+label{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub)}
+label.chk{flex-direction:row; align-items:center; gap:5px; font-size:12px; color:var(--ink); white-space:nowrap}
+label.chk.end{align-items:flex-end; padding-bottom:6px}
+label.inline{flex-direction:row; align-items:center; gap:4px; font-size:12px; color:var(--ink)}
 
 .grid1,.grid2,.grid3,.grid4{display:grid; gap:7px 8px; margin-bottom:6px}
 .grid1{grid-template-columns:1fr}
 .grid2{grid-template-columns:1fr 1fr}
 .grid3{grid-template-columns:1fr 1fr 1fr}
 .grid4{grid-template-columns:1fr 1fr 1fr 1fr}
-.row{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:6px 0}
-
-label{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub)}
-label.chk{flex-direction:row; align-items:center; gap:5px; font-size:12px; color:var(--ink)}
-input,select,button{font:inherit}
-input[type=number],input[type=text],input[type=search],select{
-  padding:5px 7px; border:1px solid var(--line); border-radius:6px; background:#fff;
-  color:var(--ink); font-size:13px; width:100%; min-width:0;
-}
-input[type=color]{padding:2px; height:30px; border:1px solid var(--line); border-radius:6px; background:#fff}
-input:focus,select:focus{outline:2px solid #bfd4fb; outline-offset:0; border-color:var(--accent)}
-button{
-  padding:5px 11px; border:1px solid var(--line); border-radius:6px; background:#fff;
-  cursor:pointer; font-size:13px; white-space:nowrap;
-}
-button:hover{background:#f6f7f9}
-button.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
-button.primary:hover{filter:brightness(1.08)}
+.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0 0}
 .hint{font-size:11px; color:var(--sub); margin:4px 0}
 .hint.small{font-size:10px; line-height:1.4}
-.sizebox{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub); justify-content:flex-end}
-.sizebox strong{font-size:12px; color:var(--ink); font-weight:600}
 
-/* 軸タブ */
-.axistabs{display:flex; gap:6px; align-items:center; margin-bottom:8px}
-.tabs{display:flex; gap:4px; flex:1 1 auto; flex-wrap:wrap}
-.tabs button{padding:4px 10px; font-size:12px}
+/* 選択式ボタン */
+.seg{display:flex}
+.seg button{
+  flex:1 1 auto; border-radius:0; border-right-width:0; font-size:12px; padding:6px 10px;
+  color:var(--sub); background:#fafbfc;
+}
+.seg button:first-child{border-radius:6px 0 0 6px}
+.seg button:last-child{border-radius:0 6px 6px 0; border-right-width:1px}
+.seg button.on{background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600}
+
+/* 軸タブ（2本のとき） */
+.tabs{display:flex; gap:4px; align-items:flex-end; padding-bottom:1px}
+.tabs button{padding:5px 11px; font-size:12px}
 .tabs button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+.tabs button.ghost{color:var(--sub); padding:5px 8px}
 
-/* 目盛り個別 */
-#tickBody.disabled{opacity:.4; pointer-events:none}
+/* ---------- プレビュー ---------- */
+#previewCard{position:relative; overflow:visible}
+#previewWrap{
+  display:flex; justify-content:center; padding:30px 20px; overflow-x:auto;
+  border-radius:var(--radius) var(--radius) 0 0;
+}
+#previewWrap.checker{
+  background-color:#fff;
+  background-image:
+    linear-gradient(45deg,#e8eaee 25%,transparent 25%,transparent 75%,#e8eaee 75%),
+    linear-gradient(45deg,#e8eaee 25%,transparent 25%,transparent 75%,#e8eaee 75%);
+  background-size:16px 16px; background-position:0 0,8px 8px;
+}
+#preview{display:block; overflow:visible; flex:0 0 auto}
+.tick-hit{cursor:pointer}
+.tick-hit:hover{fill:rgba(37,99,235,.10)}
+.stagehint{margin:0; padding:7px 14px; font-size:11px; color:var(--sub); border-top:1px solid var(--line)}
+
+/* クリックした目盛りのそばに出る編集窓 */
+.pop{
+  position:absolute; z-index:40; width:280px; padding:10px 12px 12px;
+  background:#fff; border:1px solid #c9d2e0; border-radius:10px;
+  box-shadow:0 12px 34px rgba(15,25,45,.2);
+}
+.pophead{display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12px}
+.pop .seg{margin-bottom:8px}
+.pop .seg button{padding:6px 2px}
 .when-text,.when-fraction,.when-box{display:none}
-#tickBody[data-mode=text] .when-text{display:grid}
-#tickBody[data-mode=fraction] .when-fraction{display:grid}
-#tickBody[data-mode=box] .when-box{display:grid}
+#tickPop[data-mode=text] .when-text{display:grid}
+#tickPop[data-mode=fraction] .when-fraction{display:grid}
+#tickPop[data-mode=box] .when-box{display:grid}
+
+/* ---------- 書き出しバー ---------- */
+#actionbar{display:flex; align-items:center; gap:10px; padding:10px 16px; flex-wrap:wrap}
+#sizeInfo{font-variant-numeric:tabular-nums}
+#zoomInfo{font-size:12px; color:var(--sub); min-width:44px; text-align:center}
+
+/* ---------- 詳しい設定 ---------- */
+#morePanel{display:grid; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); gap:12px}
+.card.mini{padding:12px 14px}
+.card.mini h3{margin:0 0 9px; font-size:12px; letter-spacing:.03em}
 
 .chips{display:flex; gap:4px; flex-wrap:wrap}
 .chips span{background:#eef2ff; color:#3730a3; border-radius:99px; padding:2px 8px; font-size:11px}
 .chips .none{background:#f1f3f6; color:var(--sub)}
 
-/* 用紙プレビュー */
 .pagewrap{background:#eceef2; border:1px solid var(--line); border-radius:6px; padding:8px; text-align:center}
-#pagePreview{width:100%; max-height:260px; height:auto}
-
-/* ---------- ステージ ---------- */
-.stagebar{
-  display:flex; align-items:center; gap:8px; padding:6px 12px;
-  background:var(--panel); border-bottom:1px solid var(--line); flex:0 0 auto;
-}
-#zoomInfo{font-size:12px; color:var(--sub); min-width:46px; text-align:center}
-#previewWrap{
-  flex:1 1 auto; overflow:auto; padding:28px; display:flex;
-  align-items:flex-start; justify-content:center;
-}
-#previewWrap.checker{
-  background-color:#fff;
-  background-image:
-    linear-gradient(45deg,#e3e6ea 25%,transparent 25%,transparent 75%,#e3e6ea 75%),
-    linear-gradient(45deg,#e3e6ea 25%,transparent 25%,transparent 75%,#e3e6ea 75%);
-  background-size:16px 16px; background-position:0 0,8px 8px;
-}
-#preview{
-  display:block; overflow:visible;
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.08));
-}
-.tick-hit{cursor:pointer}
-.tick-hit:hover{fill:rgba(37,99,235,.10)}
-.stagehint{flex:0 0 auto; padding:4px 12px 8px; margin:0}
+#pagePreview{width:100%; max-height:230px; height:auto}
 
 /* ---------- ライブラリ ---------- */
 #libDlg{border:none; border-radius:12px; padding:0; width:min(960px,92vw); max-height:86vh; box-shadow:0 20px 60px rgba(0,0,0,.25)}
@@ -139,44 +164,3 @@ button.primary:hover{filter:brightness(1.08)}
   opacity:0; pointer-events:none; transition:.22s; z-index:99;
 }
 #toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
-
-
-/* ---------- 追加: 手順番号・選択式ボタン・たたむ欄 ---------- */
-.sec h2 .step{
-  display:inline-flex; align-items:center; justify-content:center;
-  width:19px; height:19px; border-radius:50%; background:var(--accent); color:#fff;
-  font-size:11px; font-weight:700; flex:0 0 auto;
-}
-.sec.hilite{border-color:#bfd4fb; background:#fbfcff}
-
-/* 選択式ボタン（セグメント） */
-.seg{display:flex; gap:0; margin-bottom:8px}
-.seg button{
-  flex:1 1 0; border-radius:0; border-right-width:0; font-size:12px; padding:6px 4px;
-  color:var(--sub); background:#fafbfc;
-}
-.seg button:first-child{border-radius:6px 0 0 6px}
-.seg button:last-child{border-radius:0 6px 6px 0; border-right-width:1px}
-.seg button.on{background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600}
-.seg button.on + button{border-left-color:var(--accent)}
-.seg.big button{padding:9px 6px; font-size:13px}
-
-/* たたむ欄 */
-details.sec{padding:0}
-details.sec > summary{
-  padding:10px 12px; cursor:pointer; font-size:13px; font-weight:600; list-style:none;
-  display:flex; align-items:center; gap:6px;
-}
-details.sec > summary::before{content:'▸'; color:var(--sub); font-size:11px}
-details.sec[open] > summary::before{content:'▾'}
-details.sec > summary::-webkit-details-marker{display:none}
-details.sec > *:not(summary){padding-left:12px; padding-right:12px}
-details.sec > *:last-child{padding-bottom:12px}
-details.sec h3:first-of-type{margin-top:4px}
-.sec details > summary{cursor:pointer; font-size:12px; color:var(--sub); margin-top:6px}
-.mt{margin-top:8px}
-
-label.chk.end{justify-content:flex-start; align-items:flex-end; padding-bottom:6px}
-button.big{padding:9px 16px; font-size:14px; font-weight:600}
-#sizeInfo{font-variant-numeric:tabular-nums}
-#stepHint{background:#f4f6fa; border-radius:5px; padding:4px 8px; display:inline-block}

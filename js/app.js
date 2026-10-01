@@ -1,8 +1,11 @@
 /* ============================================================
    app.js — 画面の組み立てとイベント
    ------------------------------------------------------------
-   状態は doc（ドキュメント）1つに集約し、変更があれば refresh() で
-   「同期 → 描画 → パネルへ反映 → 自動保存」を通す。
+   方針（2026-10-01 本人指摘で全面改修）:
+   ・左の設定バーをやめ、縦一列「基本バー → プレビュー → 書き出し」にする
+     （1つずつ作る前提。プレビューは中身の高さだけで、余白を作らない）
+   ・目盛りの編集は、クリックした目盛りの「すぐそば」に小さな窓を出す
+   ・細かい設定は「詳しい設定」を開いたときだけ見せる
    ============================================================ */
 
 import {
@@ -25,6 +28,7 @@ let zoom = 1;
 
 const preview = $('#preview');
 const pagePreview = $('#pagePreview');
+const pop = $('#tickPop');
 
 /* 全軸でそろえる対象のキー */
 const SYNC_KEYS = new Set(['tickCount', 'tickStep', 'leadIn', 'leadOut']);
@@ -67,24 +71,28 @@ function refresh({ skipPanel = false } = {}) {
   if (axIdx >= doc.axes.length) axIdx = doc.axes.length - 1;
   if (sel && (sel.ai >= doc.axes.length || sel.i > doc.axes[sel.ai].tickCount)) sel = null;
 
-  // プレビュー
+  // プレビュー（中身の大きさだけ使う）
   const vb = render(doc, preview, { interactive: true, selected: sel });
   preview.style.width = `${(vb.w * zoom).toFixed(2)}mm`;
   preview.style.height = 'auto';
 
-  // 大きさの表示
   $('#sizeInfo').textContent =
-    `${vb.w.toFixed(1)} × ${vb.h.toFixed(1)} mm  /  ${mmToPx(vb.w, doc.dpi)} × ${mmToPx(vb.h, doc.dpi)} px`;
+    `出力 ${vb.w.toFixed(1)}×${vb.h.toFixed(1)}mm / ${mmToPx(vb.w, doc.dpi)}×${mmToPx(vb.h, doc.dpi)}px（${doc.dpi}dpi）`;
 
-  // 用紙サイズ感
-  const paper = PAPERS[doc.paper] || PAPERS.a4p;
-  const info = renderPage(doc, pagePreview, paper);
-  $('#pageInfo').textContent =
-    `${paper.label}の本文幅(${info.bodyW}mm)に対して ${Math.round(info.ratio * 100)}%` +
-    (info.ratio > 1 ? '　← 本文幅より広い' : '');
+  // 用紙サイズ感（「詳しい設定」を開いているときだけ描く。隠れた svg は getBBox できない）
+  if (pagePreview.offsetParent) {
+    const paper = PAPERS[doc.paper] || PAPERS.a4p;
+    const info = renderPage(doc, pagePreview, paper);
+    $('#pageInfo').textContent =
+      `${paper.label}の本文幅(${info.bodyW}mm)に対して ${Math.round(info.ratio * 100)}%` +
+      (info.ratio > 1 ? '　← 本文幅より広い' : '');
+  }
 
   if (!skipPanel) syncPanel();
   $('#zoomInfo').textContent = `${Math.round(zoom * 100)}%`;
+
+  // 編集窓はレイアウト確定後に目盛りのそばへ
+  requestAnimationFrame(placePop);
 
   // 自動保存（リロード事故よけ）
   clearTimeout(saveTimer);
@@ -97,13 +105,35 @@ function syncPanel() {
   const a = axis();
   const n = doc.axes.length;
 
-  // ① 形
+  // 形
   $$('#shapeSeg button').forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === n));
-  $('#axisTabsWrap').hidden = n < 2;
-  $('#multiSec').hidden = n < 2;
+  $('#multiCard').hidden = n < 2;
   $('#connWrap').hidden = n < 2;
 
-  // ② おわりの数（はじめの数・目盛りの数から 1目盛りの値を逆算する）
+  // 軸タブ（2本以上のときだけ）
+  const tabs = $('#axisTabs');
+  tabs.hidden = n < 2;
+  tabs.innerHTML = '';
+  if (n >= 2) {
+    doc.axes.forEach((ax, i) => {
+      const b = document.createElement('button');
+      const name = (n === 2) ? (i === 0 ? '上の線' : '下の線') : `${i + 1}本目`;
+      b.textContent = name + (ax.unit ? `（${ax.unit}）` : '');
+      if (i === axIdx) b.classList.add('on');
+      b.onclick = () => { axIdx = i; sel = null; refresh(); };
+      tabs.appendChild(b);
+    });
+    if (n < 6) {
+      const add = document.createElement('button');
+      add.textContent = '＋';
+      add.className = 'ghost';
+      add.title = '数直線を増やす';
+      add.onclick = () => { addAxis(); axIdx = doc.axes.length - 1; sel = null; refresh(); };
+      tabs.appendChild(add);
+    }
+  }
+
+  // おわりの数（はじめ・目盛りの数から 1目盛りの値を逆算して表示）
   writeControl($('#endValue'), fmtNum(a.start + a.valueStep * a.tickCount));
   $('#stepHint').textContent =
     `1目盛り = ${fmtNum(a.valueStep)}${a.labelSuffix || ''}　／　線の長さ ${fmtNum(a.tickStep * a.tickCount)}mm`;
@@ -118,28 +148,14 @@ function syncPanel() {
   }
   writeControl(les, String(a.labelEvery));
 
-  // 選択式のボタン（向き・位置）
+  // 選択式ボタン（向き・位置）
   $$('[data-seg-ax]').forEach((seg) => {
     const k = seg.dataset.segAx;
     seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === a[k]));
   });
 
-  // 軸タブ
-  const tabs = $('#axisTabs');
-  tabs.innerHTML = '';
-  doc.axes.forEach((a, i) => {
-    const b = document.createElement('button');
-    b.textContent = `${i + 1}本目${a.unit ? `（${a.unit}）` : ''}`;
-    if (i === axIdx) b.classList.add('on');
-    b.onclick = () => { axIdx = i; sel = null; refresh(); };
-    tabs.appendChild(b);
-  });
-  $('#btnDelAxis').disabled = doc.axes.length <= 1;
-
-  // 軸の各項目
+  // 軸・全体の各項目
   $$('[data-ax]').forEach((el) => writeControl(el, a[el.dataset.ax]));
-
-  // 全体
   $$('[data-doc]').forEach((el) => writeControl(el, doc[el.dataset.doc]));
 
   // 縦の破線チップ
@@ -161,23 +177,32 @@ function syncPanel() {
     });
   }
 
-  // 選択中の目盛り
-  const body = $('#tickBody');
-  if (!sel) {
-    body.classList.add('disabled');
-    body.dataset.mode = '';
-    $('#tickWho').textContent = '👉 右のプレビューで、変えたい目盛りをクリックしてください';
-  } else {
-    body.classList.remove('disabled');
-    const ov = tickOf(doc.axes[sel.ai], sel.i);
+  // 編集窓の中身
+  if (sel) {
     const av = doc.axes[sel.ai];
+    const ov = tickOf(av, sel.i);
+    const who = n > 1 ? `${n === 2 ? (sel.ai === 0 ? '上の線' : '下の線') : `${sel.ai + 1}本目`}・` : '';
     $('#tickWho').textContent =
-      `選択中: ${doc.axes.length > 1 ? `${sel.ai + 1}本目 / ` : ''}左から${sel.i}番目の目盛り（値 ${fmtNum(av.start + av.valueStep * sel.i)}）`;
-    body.dataset.mode = ov.mode;
+      `${who}左から${sel.i}番目（値 ${fmtNum(av.start + av.valueStep * sel.i)}${av.labelSuffix || ''}）`;
+    pop.dataset.mode = ov.mode;
+    $$('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.m === ov.mode));
     $$('[data-tick]').forEach((el) => writeControl(el, ov[el.dataset.tick]));
     $('#tickConnector').checked = doc.connectors.includes(sel.i);
-    $('#tickConnector').disabled = doc.axes.length < 2;
   }
+}
+
+/* 編集窓を、選んだ目盛りのすぐ下に出す */
+function placePop() {
+  if (!sel) { pop.hidden = true; return; }
+  const hit = preview.querySelector(`.tick-hit[data-ai="${sel.ai}"][data-i="${sel.i}"]`);
+  if (!hit) { pop.hidden = true; return; }
+  pop.hidden = false;
+  const card = $('#previewCard').getBoundingClientRect();
+  const hr = hit.getBoundingClientRect();
+  let x = hr.left + hr.width / 2 - card.left - pop.offsetWidth / 2;
+  x = Math.max(8, Math.min(x, card.width - pop.offsetWidth - 8));
+  pop.style.left = `${x}px`;
+  pop.style.top = `${hr.bottom - card.top + 8}px`;
 }
 
 /* ---------- 入力のバインド ---------- */
@@ -191,7 +216,6 @@ document.addEventListener('input', (ev) => {
     if (DOC_NUM.has(k)) v = Number(v) || 0;
     doc[k] = v;
     refresh({ skipPanel: true });
-    if (k === 'syncTicks' || k === 'joinLeft') syncPanel();
     return;
   }
 
@@ -201,7 +225,7 @@ document.addEventListener('input', (ev) => {
     if (doc.syncTicks && SYNC_KEYS.has(k)) doc.axes.forEach((a) => { a[k] = v; });
     else axis()[k] = v;
     refresh({ skipPanel: true });
-    if (k === 'unit') syncPanel();
+    if (k === 'labelSuffix' || k === 'unit') syncPanel();
     return;
   }
 
@@ -209,21 +233,42 @@ document.addEventListener('input', (ev) => {
     const k = el.dataset.tick;
     let v = readControl(el);
     if ((k === 'boxW' || k === 'boxH') && (v === null || v === '')) v = null;
+    if (k === 'lift' && v === null) v = 0;
     setTick(doc.axes[sel.ai], sel.i, { [k]: v });
-    if (k === 'mode') { $('#tickBody').dataset.mode = v; refresh(); }
-    else refresh({ skipPanel: true });
+    // 「矢印でさす」をONにしたとき、まだ引き出していなければ 7mm 引き出す
+    if (k === 'pointer' && v && !tickOf(doc.axes[sel.ai], sel.i).lift) {
+      setTick(doc.axes[sel.ai], sel.i, { lift: 7 });
+    }
+    refresh();
   }
 });
 
-/* 目盛りクリックで選択 */
+/* 編集窓: 出すものの切り替え */
+$('#modeSeg').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || !sel) return;
+  setTick(doc.axes[sel.ai], sel.i, { mode: b.dataset.m });
+  refresh();
+});
+
+/* 目盛りクリックで編集窓を開く */
 preview.addEventListener('click', (ev) => {
   const hit = ev.target.closest('.tick-hit');
   if (!hit) return;
   sel = { ai: Number(hit.dataset.ai), i: Number(hit.dataset.i) };
   axIdx = sel.ai;
   refresh();
-  $('#tickSec').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
+
+/* 編集窓を閉じる: ×・外側クリック・Escape */
+function closePop() { if (sel) { sel = null; refresh(); } }
+$('#popClose').onclick = closePop;
+document.addEventListener('pointerdown', (ev) => {
+  if (!sel) return;
+  if (ev.target.closest('#tickPop') || ev.target.closest('.tick-hit')) return;
+  closePop();
+});
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closePop(); });
 
 /* 縦の破線 */
 $('#tickConnector').addEventListener('change', (ev) => {
@@ -253,7 +298,7 @@ function scaleLens(f) {
 $('#btnLenUp').onclick = () => scaleLens(1.15);
 $('#btnLenDown').onclick = () => scaleLens(1 / 1.15);
 
-/* 軸の増減 */
+/* 形（1本 / 2本） */
 function addAxis() {
   const base = doc.axes[doc.axes.length - 1];
   doc.axes.push(defaultAxis({
@@ -268,9 +313,6 @@ function addAxis() {
   }
 }
 
-$('#btnAddAxis').onclick = () => { addAxis(); axIdx = doc.axes.length - 1; sel = null; refresh(); };
-
-/* ① 形（1本 / 2本）の切り替え */
 $('#shapeSeg').addEventListener('click', (ev) => {
   const b = ev.target.closest('button');
   if (!b) return;
@@ -282,7 +324,7 @@ $('#shapeSeg').addEventListener('click', (ev) => {
   refresh();
 });
 
-/* 選択式ボタン（目盛りの向き・数字の位置） */
+/* 向き・位置の選択式ボタン */
 document.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-seg-ax] button');
   if (!b) return;
@@ -296,7 +338,9 @@ $('#endValue').addEventListener('input', () => {
   const end = parseFloat($('#endValue').value);
   if (!Number.isFinite(end) || a.tickCount <= 0) return;
   a.valueStep = (end - a.start) / a.tickCount;
-  refresh();
+  refresh({ skipPanel: true });
+  $('#stepHint').textContent =
+    `1目盛り = ${fmtNum(a.valueStep)}${a.labelSuffix || ''}　／　線の長さ ${fmtNum(a.tickStep * a.tickCount)}mm`;
 });
 
 /* 数字を出す間隔 */
@@ -305,29 +349,26 @@ $('#labelEverySel').addEventListener('change', () => {
   refresh();
 });
 
-$('#btnDelAxis').onclick = () => {
-  if (doc.axes.length <= 1) return;
-  doc.axes.splice(axIdx, 1);
-  axIdx = Math.max(0, axIdx - 1);
-  sel = null;
-  refresh();
-};
-
 /* 表示 */
 $('#chkChecker').onchange = (e) => $('#previewWrap').classList.toggle('checker', e.target.checked);
 $('#btnZoomIn').onclick = () => { zoom = Math.min(6, zoom * 1.25); refresh({ skipPanel: true }); };
 $('#btnZoomOut').onclick = () => { zoom = Math.max(0.2, zoom / 1.25); refresh({ skipPanel: true }); };
-$('#btnZoomReset').onclick = () => { zoom = 1; refresh({ skipPanel: true }); };
+
+/* 詳しい設定 */
+$('#btnMore').onclick = () => {
+  const p = $('#morePanel');
+  p.hidden = !p.hidden;
+  $('#btnMore').textContent = p.hidden ? '詳しい設定 ▾' : '詳しい設定 ▴';
+  refresh();   // 用紙プレビューを描くため
+};
 
 /* ---------- 書き出し ---------- */
 
-async function exportPNG() {
+$('#btnPNG').onclick = async () => {
   const blob = await toPNGBlob(preview, doc.dpi);
   download(blob, `${safeName($('#docName').value)}.png`);
   toast('透過PNGを書き出しました');
-}
-$('#btnPNG').onclick = exportPNG;
-$('#btnPNG2').onclick = exportPNG;
+};
 
 $('#btnSVG').onclick = () => {
   const str = toSVGString(preview);
@@ -337,12 +378,9 @@ $('#btnSVG').onclick = () => {
 
 /* ---------- 作品（保存・複製・新規） ---------- */
 
-$('#docName').oninput = () => refresh({ skipPanel: true });
-$('#docUnit').oninput = () => refresh({ skipPanel: true });
-
 async function saveWork({ asNew = false } = {}) {
   const name = $('#docName').value.trim() || '名前のない数直線';
-  const thumb = await toThumbnail(preview, 240);
+  const thumb = await toThumbnail(preview, 200);
   const id = await storage.save({
     id: asNew ? null : curId,
     name, unitName: $('#docUnit').value.trim(), memo: doc.memo || '',
@@ -372,23 +410,20 @@ $('#btnNew').onclick = () => {
   refresh();
 };
 
-/* ---------- よく使う型 ---------- */
+/* ---------- 型から始める（チップ） ---------- */
 
-const presetSel = $('#presetSel');
-for (const [k, p] of Object.entries(PRESETS)) {
-  const o = document.createElement('option');
-  o.value = k; o.textContent = p.label;
-  presetSel.appendChild(o);
+const chipsNav = $('#presetChips');
+for (const p of Object.values(PRESETS)) {
+  const b = document.createElement('button');
+  b.textContent = p.label;
+  b.onclick = () => {
+    doc = p.make();
+    curId = null; axIdx = 0; sel = null;
+    refresh();
+    toast(`「${p.label}」を読み込みました`);
+  };
+  chipsNav.appendChild(b);
 }
-presetSel.onchange = () => {
-  const p = PRESETS[presetSel.value];
-  if (!p) return;
-  doc = p.make();
-  curId = null; axIdx = 0; sel = null;
-  refresh();
-  presetSel.value = '';
-  toast(`「${p.label}」を読み込みました`);
-};
 
 /* ---------- 用紙 ---------- */
 
@@ -490,10 +525,11 @@ $('#libFile').onchange = async (ev) => {
 /* ---------- 起動 ---------- */
 
 (async function boot() {
-  // ?preset=ratio2 のように指定すると、その型で開く（動作確認・共有用）
+  // ?preset=oku2 で型から開く。&sel=5 で目盛りを選んだ状態にする（動作確認用）
   const q = new URLSearchParams(location.search);
   if (q.get('preset') && PRESETS[q.get('preset')]) {
     doc = PRESETS[q.get('preset')].make();
+    if (q.get('sel') != null) sel = { ai: 0, i: Number(q.get('sel')) || 0 };
     refresh();
     return;
   }
