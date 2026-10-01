@@ -6,7 +6,7 @@
    ============================================================ */
 
 import {
-  PAPERS, PRESETS, defaultDoc, defaultAxis, defaultTickOverride,
+  PAPERS, PRESETS, defaultDoc, defaultAxis, fmtNum,
   tickOf, setTick, applySync, cloneDoc,
 } from './model.js';
 import { render, renderPage } from './render.js';
@@ -94,6 +94,36 @@ function refresh({ skipPanel = false } = {}) {
 }
 
 function syncPanel() {
+  const a = axis();
+  const n = doc.axes.length;
+
+  // ① 形
+  $$('#shapeSeg button').forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === n));
+  $('#axisTabsWrap').hidden = n < 2;
+  $('#multiSec').hidden = n < 2;
+  $('#connWrap').hidden = n < 2;
+
+  // ② おわりの数（はじめの数・目盛りの数から 1目盛りの値を逆算する）
+  writeControl($('#endValue'), fmtNum(a.start + a.valueStep * a.tickCount));
+  $('#stepHint').textContent =
+    `1目盛り = ${fmtNum(a.valueStep)}${a.labelSuffix || ''}　／　線の長さ ${fmtNum(a.tickStep * a.tickCount)}mm`;
+
+  // 数字を出す間隔（一覧にない値なら足す）
+  const les = $('#labelEverySel');
+  if (![...les.options].some((o) => Number(o.value) === a.labelEvery)) {
+    const o = document.createElement('option');
+    o.value = String(a.labelEvery);
+    o.textContent = `${a.labelEvery}目盛りごと`;
+    les.appendChild(o);
+  }
+  writeControl(les, String(a.labelEvery));
+
+  // 選択式のボタン（向き・位置）
+  $$('[data-seg-ax]').forEach((seg) => {
+    const k = seg.dataset.segAx;
+    seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === a[k]));
+  });
+
   // 軸タブ
   const tabs = $('#axisTabs');
   tabs.innerHTML = '';
@@ -107,7 +137,6 @@ function syncPanel() {
   $('#btnDelAxis').disabled = doc.axes.length <= 1;
 
   // 軸の各項目
-  const a = axis();
   $$('[data-ax]').forEach((el) => writeControl(el, a[el.dataset.ax]));
 
   // 全体
@@ -137,11 +166,13 @@ function syncPanel() {
   if (!sel) {
     body.classList.add('disabled');
     body.dataset.mode = '';
-    $('#tickWho').textContent = 'プレビューの目盛りをクリック';
+    $('#tickWho').textContent = '👉 右のプレビューで、変えたい目盛りをクリックしてください';
   } else {
     body.classList.remove('disabled');
     const ov = tickOf(doc.axes[sel.ai], sel.i);
-    $('#tickWho').textContent = `${sel.ai + 1}本目 / 第${sel.i}目盛り`;
+    const av = doc.axes[sel.ai];
+    $('#tickWho').textContent =
+      `選択中: ${doc.axes.length > 1 ? `${sel.ai + 1}本目 / ` : ''}左から${sel.i}番目の目盛り（値 ${fmtNum(av.start + av.valueStep * sel.i)}）`;
     body.dataset.mode = ov.mode;
     $$('[data-tick]').forEach((el) => writeControl(el, ov[el.dataset.tick]));
     $('#tickConnector').checked = doc.connectors.includes(sel.i);
@@ -223,23 +254,56 @@ $('#btnLenUp').onclick = () => scaleLens(1.15);
 $('#btnLenDown').onclick = () => scaleLens(1 / 1.15);
 
 /* 軸の増減 */
-$('#btnAddAxis').onclick = () => {
+function addAxis() {
   const base = doc.axes[doc.axes.length - 1];
-  const a = defaultAxis({
+  doc.axes.push(defaultAxis({
     tickCount: base.tickCount, tickStep: base.tickStep,
     leadIn: base.leadIn, leadOut: base.leadOut,
     fontSize: base.fontSize, lineWidth: base.lineWidth,
     labelSide: 'down', tickSide: 'down',
-  });
-  if (doc.axes.length === 1) {   // 1本 → 2本: 比例数直線の形にそろえる
+  }));
+  if (doc.axes.length === 2) {   // 1本 → 2本: 比例数直線の形にそろえる
     doc.axes[0].labelSide = 'up';
     doc.axes[0].tickSide = 'up';
   }
-  doc.axes.push(a);
-  axIdx = doc.axes.length - 1;
-  sel = null;
+}
+
+$('#btnAddAxis').onclick = () => { addAxis(); axIdx = doc.axes.length - 1; sel = null; refresh(); };
+
+/* ① 形（1本 / 2本）の切り替え */
+$('#shapeSeg').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  const n = Number(b.dataset.n);
+  while (doc.axes.length > n) doc.axes.pop();
+  while (doc.axes.length < n) addAxis();
+  if (n === 1) { doc.axes[0].tickSide = 'up'; doc.axes[0].labelSide = 'up'; }
+  axIdx = 0; sel = null;
   refresh();
-};
+});
+
+/* 選択式ボタン（目盛りの向き・数字の位置） */
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-seg-ax] button');
+  if (!b) return;
+  axis()[b.parentElement.dataset.segAx] = b.dataset.v;
+  refresh();
+});
+
+/* おわりの数 → 1目盛りの値を逆算 */
+$('#endValue').addEventListener('input', () => {
+  const a = axis();
+  const end = parseFloat($('#endValue').value);
+  if (!Number.isFinite(end) || a.tickCount <= 0) return;
+  a.valueStep = (end - a.start) / a.tickCount;
+  refresh();
+});
+
+/* 数字を出す間隔 */
+$('#labelEverySel').addEventListener('change', () => {
+  axis().labelEvery = Number($('#labelEverySel').value) || 0;
+  refresh();
+});
 
 $('#btnDelAxis').onclick = () => {
   if (doc.axes.length <= 1) return;
@@ -257,11 +321,13 @@ $('#btnZoomReset').onclick = () => { zoom = 1; refresh({ skipPanel: true }); };
 
 /* ---------- 書き出し ---------- */
 
-$('#btnPNG').onclick = async () => {
+async function exportPNG() {
   const blob = await toPNGBlob(preview, doc.dpi);
   download(blob, `${safeName($('#docName').value)}.png`);
   toast('透過PNGを書き出しました');
-};
+}
+$('#btnPNG').onclick = exportPNG;
+$('#btnPNG2').onclick = exportPNG;
 
 $('#btnSVG').onclick = () => {
   const str = toSVGString(preview);

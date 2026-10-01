@@ -35,6 +35,9 @@ export function defaultAxis(over = {}) {
     start: 0,           // 目盛り0の値
     valueStep: 1,       // 1目盛りあたりの値
     labelEvery: 1,      // 何目盛りごとに数字を出すか（0で自動ラベルなし）
+    labelPrefix: '',    // 数字の前に付ける文字
+    labelSuffix: '',    // ★数字の後ろに付ける文字（「万」「億」「cm」など）
+    suffixSkipZero: true, // 0 には付けない（「0万」ではなく「0」にする）
 
     // --- 目盛りの見た目 ---
     midEvery: 5,        // 中くらいの目盛りを何個ごとに出すか（0で無効）
@@ -42,7 +45,7 @@ export function defaultAxis(over = {}) {
     lenMinor: 2.0,      // 最小目盛りの長さ (mm)
     lenMid: 3.2,
     lenMajor: 4.6,
-    tickSide: 'both',   // 'up' | 'down' | 'both'
+    tickSide: 'up',     // 'up' | 'down' | 'both' ★既定は「上に伸びる」（教科書の形）
     tickStyle: 'solid', // 'solid' | 'dashed'
 
     // --- 線 ---
@@ -51,7 +54,7 @@ export function defaultAxis(over = {}) {
     leadIn: 0,          // 目盛り0より左の余り (mm)
     leadOut: 8,         // 最終目盛りより右の余り (mm)
     endLeft: 'none',    // 'none' | 'arrow' | 'cap' | 'wave'
-    endRight: 'none',
+    endRight: 'none',   // 教科書の数直線は矢印なしで少し伸びて終わる
 
     // --- ラベル ---
     labelSide: 'up',    // 'up' | 'down'
@@ -60,6 +63,7 @@ export function defaultAxis(over = {}) {
     boxW: 9,            // □ の既定の幅 (mm)
     boxH: 7,
     boxDashed: false,
+    pointerColor: '#8c8c8c',  // 引き出し矢印の色（教科書は灰色）
 
     // --- 単位欄（右端の "(kg)" など） ---
     unit: '',
@@ -84,6 +88,8 @@ export function defaultTickOverride(over = {}) {
     boxH: null,
     ruby: '',        // ふりがな
     tickShow: true,  // 目盛り線そのものを出すか
+    lift: 0,         // ★ラベルを線から余分に離す距離 (mm)。0 なら通常どおり
+    pointer: false,  // ★離した位置から目盛りへ矢印を引く（教科書の「□↓」の形）
     ...over,
   };
 }
@@ -204,6 +210,41 @@ export const PRESETS = {
         midEvery: 5, majorEvery: 10,
       })],
     }),
+  },
+  oku1: {
+    label: '0〜100万（大きい数・□あり）',
+    make: () => {
+      const d = defaultDoc({
+        axes: [defaultAxis({
+          tickCount: 11, tickStep: 13, start: 0, valueStep: 10,
+          labelEvery: 5, labelSuffix: '万', midEvery: 0, majorEvery: 5,
+          lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.6,
+          lineWidth: 0.8, leadOut: 0, boxW: 14, boxH: 8,
+        })],
+      });
+      setTick(d.axes[0], 1, { mode: 'box' });
+      setTick(d.axes[0], 7, { mode: 'box' });
+      return d;
+    },
+  },
+  oku2: {
+    label: '9000万〜1億（引き出し□）',
+    make: () => {
+      const d = defaultDoc({
+        axes: [defaultAxis({
+          tickCount: 10, tickStep: 14, start: 9000, valueStep: 100,
+          labelEvery: 10, labelSuffix: '万', suffixSkipZero: false,
+          midEvery: 0, majorEvery: 10, lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.6,
+          lineWidth: 0.8, leadOut: 0, boxW: 16, boxH: 8,
+        })],
+      });
+      setTick(d.axes[0], 10, { mode: 'text', text: '1億' });
+      // 引き出した□から目盛りへ矢印を引く
+      setTick(d.axes[0], 2, { mode: 'box', lift: 7, pointer: true });
+      setTick(d.axes[0], 5, { mode: 'box', lift: 7, pointer: true });
+      setTick(d.axes[0], 8, { mode: 'box', lift: 7, pointer: true });
+      return d;
+    },
   },
   ratio2: {
     label: '比例数直線（2本）',

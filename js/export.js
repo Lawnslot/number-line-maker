@@ -72,7 +72,7 @@ export async function toPNGBlob(svgEl, dpi) {
 }
 
 /** 一覧表示用の小さなサムネイル（dataURL）。白背景にして見やすくする */
-export async function toThumbnail(svgEl, maxW = 240) {
+export async function toThumbnail(svgEl, maxW = 200) {
   const vb = svgEl.getAttribute('viewBox').split(/\s+/).map(Number);
   const w = Math.max(1, Math.round(Math.min(maxW, vb[2] * 4)));
   const h = Math.max(1, Math.round((w / vb[2]) * vb[3]));
@@ -85,7 +85,9 @@ export async function toThumbnail(svgEl, maxW = 240) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL('image/png');
+  // ★PNG(base64)だと1件20〜40KBになり localStorage(5MB) をすぐ圧迫する。
+  // 白背景のサムネイルなので JPEG で十分（1件3〜6KB程度に収まる）。
+  return canvas.toDataURL('image/jpeg', 0.7);
 }
 
 /** Blob / dataURL をダウンロードさせる */

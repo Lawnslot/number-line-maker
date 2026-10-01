@@ -83,6 +83,13 @@ function imgFromBlob(b) {
   render(d3, svg, { interactive: false });
   ok(svg.querySelectorAll('rect[fill=none], rect[fill="none"]').length === 1, '□が1つ描かれている（塗りなし＝透過）');
 
+  // --- 9. サムネイルの容量（localStorage 5MB を圧迫しないか） ---
+  const { toThumbnail } = await import('../js/export.js');
+  render(doc, svg, { interactive: false });
+  const th = await toThumbnail(svg, 200);
+  const thKB = (th.length * 2) / 1024;   // UTF-16で保存されるので ×2
+  ok(thKB < 12, `サムネイル1件 ${thKB.toFixed(1)}KB（12KB未満なら400件でも5MBに収まる）`);
+
   // --- 目視用: 書き出したPNGを色付き背景の上に並べる（透過と字形の確認） ---
   const box = document.createElement('div');
   box.style.cssText = 'margin-top:14px;padding:14px;background:#ffd9e8;display:inline-block;border-radius:8px';

@@ -139,3 +139,44 @@ button.primary:hover{filter:brightness(1.08)}
   opacity:0; pointer-events:none; transition:.22s; z-index:99;
 }
 #toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+
+
+/* ---------- 追加: 手順番号・選択式ボタン・たたむ欄 ---------- */
+.sec h2 .step{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:19px; height:19px; border-radius:50%; background:var(--accent); color:#fff;
+  font-size:11px; font-weight:700; flex:0 0 auto;
+}
+.sec.hilite{border-color:#bfd4fb; background:#fbfcff}
+
+/* 選択式ボタン（セグメント） */
+.seg{display:flex; gap:0; margin-bottom:8px}
+.seg button{
+  flex:1 1 0; border-radius:0; border-right-width:0; font-size:12px; padding:6px 4px;
+  color:var(--sub); background:#fafbfc;
+}
+.seg button:first-child{border-radius:6px 0 0 6px}
+.seg button:last-child{border-radius:0 6px 6px 0; border-right-width:1px}
+.seg button.on{background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600}
+.seg button.on + button{border-left-color:var(--accent)}
+.seg.big button{padding:9px 6px; font-size:13px}
+
+/* たたむ欄 */
+details.sec{padding:0}
+details.sec > summary{
+  padding:10px 12px; cursor:pointer; font-size:13px; font-weight:600; list-style:none;
+  display:flex; align-items:center; gap:6px;
+}
+details.sec > summary::before{content:'▸'; color:var(--sub); font-size:11px}
+details.sec[open] > summary::before{content:'▾'}
+details.sec > summary::-webkit-details-marker{display:none}
+details.sec > *:not(summary){padding-left:12px; padding-right:12px}
+details.sec > *:last-child{padding-bottom:12px}
+details.sec h3:first-of-type{margin-top:4px}
+.sec details > summary{cursor:pointer; font-size:12px; color:var(--sub); margin-top:6px}
+.mt{margin-top:8px}
+
+label.chk.end{justify-content:flex-start; align-items:flex-end; padding-bottom:6px}
+button.big{padding:9px 16px; font-size:14px; font-weight:600}
+#sizeInfo{font-variant-numeric:tabular-nums}
+#stepHint{background:#f4f6fa; border-radius:5px; padding:4px 8px; display:inline-block}

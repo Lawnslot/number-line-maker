@@ -44,32 +44,43 @@ function estW(s, fs) {
 /** 目盛り i に実際に出すラベルを決める */
 function resolveLabel(a, i) {
   const ov = tickOf(a, i);
+  const lift = Math.max(0, Number(ov.lift) || 0);
+  const common = { ruby: ov.ruby, lift, pointer: !!ov.pointer && lift > 0 };
   switch (ov.mode) {
     case 'none':
       return { mode: 'none' };
     case 'text':
-      return { mode: 'text', text: ov.text, ruby: ov.ruby };
+      return { mode: 'text', text: ov.text, ...common };
     case 'fraction':
-      return { mode: 'fraction', whole: ov.whole, num: ov.num, den: ov.den, ruby: ov.ruby };
+      return { mode: 'fraction', whole: ov.whole, num: ov.num, den: ov.den, ...common };
     case 'box':
-      return { mode: 'box', boxW: ov.boxW ?? a.boxW, boxH: ov.boxH ?? a.boxH, ruby: ov.ruby };
+      return { mode: 'box', boxW: ov.boxW ?? a.boxW, boxH: ov.boxH ?? a.boxH, ...common };
     default: // 'auto'
       if (a.labelEvery > 0 && i % a.labelEvery === 0) {
-        return { mode: 'text', text: fmtNum(tickValue(a, i)), ruby: ov.ruby };
+        return { mode: 'text', text: autoText(a, i), ...common };
       }
       return { mode: 'none' };
   }
+}
+
+/** 自動ラベルの文字列（「50」＋「万」＝「50万」。0 には付けない設定あり） */
+function autoText(a, i) {
+  const v = tickValue(a, i);
+  const body = fmtNum(v);
+  if (a.suffixSkipZero && v === 0) return body;
+  return (a.labelPrefix || '') + body + (a.labelSuffix || '');
 }
 
 /** ラベル1つ分の高さ（mm）。labelBlock() と必ず一致させること */
 function blockHeight(spec, a) {
   if (spec.mode === 'none') return 0;
   const fs = a.fontSize;
+  // 引き出し（線から離す距離）はラベルの外側に積む
   let h = spec.ruby ? fs * 0.62 * 1.15 : 0;
   if (spec.mode === 'box') h += Number(spec.boxH);
   else if (spec.mode === 'fraction') h += fs * 2.25;
   else h += fs * 1.0;
-  return h;
+  return h + (Number(spec.lift) || 0);
 }
 
 /** ラベル1つを描く。返り値の node は「上端が y=0・中心が x=0」に組まれている */
@@ -176,6 +187,22 @@ function endMark(g, kind, x, y, dir, a) {
   }
 }
 
+/** 引き出した□から目盛りへ向かう矢印（教科書の「□↓」の形） */
+function pointerArrow(g, x, yFrom, yTo, a) {
+  const fs = a.fontSize;
+  const w = fs * 0.22, hw = fs * 0.5, hl = fs * 0.55;
+  const dir = yTo > yFrom ? 1 : -1;
+  const base = yTo - dir * hl;
+  const pts = [
+    [x - w / 2, yFrom], [x + w / 2, yFrom], [x + w / 2, base], [x + hw / 2, base],
+    [x, yTo], [x - hw / 2, base], [x - w / 2, base],
+  ];
+  g.appendChild(E('polygon', {
+    points: pts.map((p) => `${r(p[0])},${r(p[1])}`).join(' '),
+    fill: a.pointerColor || '#8c8c8c',
+  }));
+}
+
 /* ---------- 軸1本を描く ---------- */
 
 function drawAxis(g, a, y) {
@@ -210,11 +237,19 @@ function drawAxis(g, a, y) {
     const spec = resolveLabel(a, i);
     if (spec.mode !== 'none') {
       const { node, h } = labelBlock(spec, a);
-      const top = (a.labelSide === 'up')
-        ? y - ex.up - a.labelGap - h
-        : y + ex.down + a.labelGap;
+      const lift = Number(spec.lift) || 0;
+      const up = (a.labelSide === 'up');
+      const top = up
+        ? y - ex.up - a.labelGap - lift - h
+        : y + ex.down + a.labelGap + lift;
       node.setAttribute('transform', `translate(${r(x)},${r(top)})`);
       g.appendChild(node);
+
+      if (spec.pointer) {
+        const tipGap = 0.4;
+        if (up) pointerArrow(g, x, top + h + 0.3, y - ex.up - tipGap, a);
+        else pointerArrow(g, x, top - 0.3, y + ex.down + tipGap, a);
+      }
     }
   }
 
