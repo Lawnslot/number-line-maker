@@ -49,10 +49,10 @@ export function defaultAxis(over = {}) {
     tickStyle: 'solid', // 'solid' | 'dashed'
 
     // --- 線 ---
-    lineWidth: 0.5,     // (mm)
+    lineWidth: 0.8,     // (mm) 教科書の数直線は本線が太い
     color: '#000000',
     leadIn: 0,          // 目盛り0より左の余り (mm)
-    leadOut: 8,         // 最終目盛りより右の余り (mm)
+    leadOut: 4,         // 最終目盛りより右の余り (mm)
     endLeft: 'none',    // 'none' | 'arrow' | 'cap' | 'wave'
     endRight: 'none',   // 教科書の数直線は矢印なしで少し伸びて終わる
 
@@ -60,8 +60,8 @@ export function defaultAxis(over = {}) {
     labelSide: 'up',    // 'up' | 'down'
     fontSize: 4.5,      // (mm)
     labelGap: 1.2,      // 目盛り先端からラベルまでの間隔 (mm)
-    boxW: 9,            // □ の既定の幅 (mm)
-    boxH: 7,
+    boxW: 14,           // □ の既定の幅 (mm) 4桁書ける大きさ
+    boxH: 8,
     boxDashed: false,
     pointerColor: '#8c8c8c',  // 引き出し矢印の色（教科書は灰色）
 
@@ -88,8 +88,10 @@ export function defaultTickOverride(over = {}) {
     boxH: null,
     ruby: '',        // ふりがな
     tickShow: true,  // 目盛り線そのものを出すか
+    side: 'auto',    // ★'auto'=軸の設定に従う / 'up'=線の上 / 'down'=線の下
+                     //   （数字は線の上、記号ア・イ・ウは線の下、という形を作るために要る）
     lift: 0,         // ★ラベルを線から余分に離す距離 (mm)。0 なら通常どおり
-    pointer: false,  // ★離した位置から目盛りへ矢印を引く（教科書の「□↓」の形）
+    pointer: false,  // ★離した位置から目盛りへ矢印を引く（教科書の「□↓」「↑イ」の形）
     ...over,
   };
 }
@@ -193,15 +195,77 @@ export const PRESETS = {
       axes: [defaultAxis({ tickCount: 10, tickStep: 12, labelEvery: 1, midEvery: 5, majorEvery: 10 })],
     }),
   },
-  basic100: {
-    label: '0〜100（10とび）',
-    make: () => defaultDoc({
-      axes: [defaultAxis({
-        tickCount: 100, tickStep: 1.6, valueStep: 1, labelEvery: 10,
-        midEvery: 5, majorEvery: 10, lenMinor: 1.4, lenMid: 2.4, lenMajor: 3.6,
-      })],
-    }),
+
+  /* 教科書「大きい数」練習⑥ の3本。実際に作った設定をそのまま型にしてある */
+  oku1: {
+    label: '大きい数① 0〜100万',
+    make: () => {
+      const d = defaultDoc({
+        axes: [defaultAxis({
+          tickCount: 11, tickStep: 13, start: 0, valueStep: 10,
+          labelEvery: 5, labelSuffix: '万',
+          midEvery: 0, majorEvery: 5, lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.8,
+          leadOut: 0, boxW: 14,
+        })],
+      });
+      setTick(d.axes[0], 3, { mode: 'box' });
+      setTick(d.axes[0], 8, { mode: 'box' });
+      return d;
+    },
   },
+  oku2: {
+    label: '大きい数② 9000万〜1億',
+    make: () => {
+      const d = defaultDoc({
+        axes: [defaultAxis({
+          tickCount: 10, tickStep: 14, start: 9000, valueStep: 100,
+          labelEvery: 10, labelSuffix: '万', suffixSkipZero: false,
+          midEvery: 0, majorEvery: 10, lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.8,
+          leadOut: 0, boxW: 16,
+        })],
+      });
+      setTick(d.axes[0], 10, { mode: 'text', text: '1億' });
+      for (const i of [3, 6, 9]) setTick(d.axes[0], i, { mode: 'box', lift: 7, pointer: true });
+      return d;
+    },
+  },
+  oku3: {
+    label: '大きい数③ 6000万〜1億（1億を問う）',
+    make: () => {
+      const d = defaultDoc({
+        axes: [defaultAxis({
+          tickCount: 40, tickStep: 3.6, start: 6000, valueStep: 100,
+          labelEvery: 10, labelSuffix: '万', suffixSkipZero: false,
+          midEvery: 5, majorEvery: 10, lenMinor: 1.8, lenMid: 2.4, lenMajor: 3.6,
+          leadOut: 0, boxW: 17,
+        })],
+      });
+      // ★右端の □ が 100000000（1億）を問う
+      for (const i of [14, 27, 40]) setTick(d.axes[0], i, { mode: 'box', lift: 7, pointer: true });
+      return d;
+    },
+  },
+
+  mark: {
+    label: '記号で問う（ア・イ・ウ）',
+    make: () => {
+      const d = defaultDoc({
+        axes: [defaultAxis({
+          tickCount: 75, tickStep: 2, start: 0, valueStep: 1000,
+          labelEvery: 10, midEvery: 5, majorEvery: 10,
+          lenMinor: 1.6, lenMid: 2.2, lenMajor: 3.2,
+          fontSize: 3.6, leadOut: 0,
+        })],
+      });
+      // 数字は線の上、記号は線の下から矢印でさす
+      const marks = { 3: 'ア', 20: 'イ', 71: 'ウ' };
+      for (const [i, t] of Object.entries(marks)) {
+        setTick(d.axes[0], Number(i), { mode: 'text', text: t, side: 'down', lift: 6, pointer: true });
+      }
+      return d;
+    },
+  },
+
   decimal: {
     label: '0〜1（小数）',
     make: () => defaultDoc({
@@ -211,68 +275,30 @@ export const PRESETS = {
       })],
     }),
   },
-  oku1: {
-    label: '0〜100万（大きい数・□あり）',
-    make: () => {
-      const d = defaultDoc({
-        axes: [defaultAxis({
-          tickCount: 11, tickStep: 13, start: 0, valueStep: 10,
-          labelEvery: 5, labelSuffix: '万', midEvery: 0, majorEvery: 5,
-          lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.6,
-          lineWidth: 0.8, leadOut: 0, boxW: 14, boxH: 8,
-        })],
-      });
-      setTick(d.axes[0], 1, { mode: 'box' });
-      setTick(d.axes[0], 7, { mode: 'box' });
-      return d;
-    },
-  },
-  oku2: {
-    label: '9000万〜1億（引き出し□）',
-    make: () => {
-      const d = defaultDoc({
-        axes: [defaultAxis({
-          tickCount: 10, tickStep: 14, start: 9000, valueStep: 100,
-          labelEvery: 10, labelSuffix: '万', suffixSkipZero: false,
-          midEvery: 0, majorEvery: 10, lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.6,
-          lineWidth: 0.8, leadOut: 0, boxW: 16, boxH: 8,
-        })],
-      });
-      setTick(d.axes[0], 10, { mode: 'text', text: '1億' });
-      // 引き出した□から目盛りへ矢印を引く
-      setTick(d.axes[0], 2, { mode: 'box', lift: 7, pointer: true });
-      setTick(d.axes[0], 5, { mode: 'box', lift: 7, pointer: true });
-      setTick(d.axes[0], 8, { mode: 'box', lift: 7, pointer: true });
-      return d;
-    },
-  },
+
   ratio2: {
     label: '比例数直線（2本）',
     make: () => {
       const d = defaultDoc({
-        axisGap: 14,
-        joinLeft: true,
-        connectors: [1, 3],
+        axisGap: 14, joinLeft: true, connectors: [1, 3],
         axes: [
           defaultAxis({
             tickCount: 4, tickStep: 22, labelEvery: 0, labelSide: 'up',
             tickSide: 'up', tickStyle: 'dashed', lenMinor: 2.4, lenMid: 2.4, lenMajor: 2.4,
-            midEvery: 0, majorEvery: 0, lineWidth: 0.8, leadOut: 10, unit: 'kg',
+            midEvery: 0, majorEvery: 0, leadOut: 10, unit: 'kg',
           }),
           defaultAxis({
             tickCount: 4, tickStep: 22, labelEvery: 0, labelSide: 'down',
             tickSide: 'down', tickStyle: 'dashed', lenMinor: 2.4, lenMid: 2.4, lenMajor: 2.4,
-            midEvery: 0, majorEvery: 0, lineWidth: 0.8, leadOut: 10, unit: 'm',
+            midEvery: 0, majorEvery: 0, leadOut: 10, unit: 'm',
           }),
         ],
       });
-      // 上段: 0 / 5⁄18 / x（エックス）
       setTick(d.axes[0], 0, { mode: 'text', text: '0' });
       setTick(d.axes[0], 1, { mode: 'fraction', num: '5', den: '18' });
       setTick(d.axes[0], 2, { tickShow: false });
       setTick(d.axes[0], 3, { mode: 'text', text: 'x', ruby: 'エックス' });
       setTick(d.axes[0], 4, { tickShow: false });
-      // 下段: 0 / 1 / 3
       setTick(d.axes[1], 0, { mode: 'text', text: '0' });
       setTick(d.axes[1], 1, { mode: 'text', text: '1' });
       setTick(d.axes[1], 2, { tickShow: false });

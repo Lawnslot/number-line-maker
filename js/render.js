@@ -45,10 +45,12 @@ function estW(s, fs) {
 function resolveLabel(a, i) {
   const ov = tickOf(a, i);
   const lift = Math.max(0, Number(ov.lift) || 0);
-  const common = { ruby: ov.ruby, lift, pointer: !!ov.pointer && lift > 0 };
+  // 目盛りごとの上下指定。'auto' なら軸の設定に従う
+  const side = (ov.side === 'up' || ov.side === 'down') ? ov.side : a.labelSide;
+  const common = { ruby: ov.ruby, lift, pointer: !!ov.pointer && lift > 0, side };
   switch (ov.mode) {
     case 'none':
-      return { mode: 'none' };
+      return { mode: 'none', ...common };
     case 'text':
       return { mode: 'text', text: ov.text, ...common };
     case 'fraction':
@@ -59,7 +61,9 @@ function resolveLabel(a, i) {
       if (a.labelEvery > 0 && i % a.labelEvery === 0) {
         return { mode: 'text', text: autoText(a, i), ...common };
       }
-      return { mode: 'none' };
+      // ★ここで ...common を落とすと「数字が出ない目盛りでは矢印も出ない」になる
+      //   （2026-10-01: 「矢印が出てこない」の原因はこれだった）
+      return { mode: 'none', ...common };
   }
 }
 
@@ -73,7 +77,9 @@ function autoText(a, i) {
 
 /** ラベル1つ分の高さ（mm）。labelBlock() と必ず一致させること */
 function blockHeight(spec, a) {
-  if (spec.mode === 'none') return 0;
+  const lift = Number(spec.lift) || 0;
+  // ラベルが無くても、矢印だけ出す場合は引き出し分の高さが要る
+  if (spec.mode === 'none') return spec.pointer ? lift : 0;
   const fs = a.fontSize;
   // 引き出し（線から離す距離）はラベルの外側に積む
   let h = spec.ruby ? fs * 0.62 * 1.15 : 0;
@@ -148,15 +154,20 @@ export function axisExtents(a) {
   const up = (a.tickSide === 'up' || a.tickSide === 'both') ? mt : 0;
   const down = (a.tickSide === 'down' || a.tickSide === 'both') ? mt : 0;
 
-  let lh = 0;
-  for (let i = 0; i <= a.tickCount; i++) lh = Math.max(lh, blockHeight(resolveLabel(a, i), a));
+  let lhUp = 0, lhDown = 0;
+  for (let i = 0; i <= a.tickCount; i++) {
+    const spec = resolveLabel(a, i);
+    const h = blockHeight(spec, a);
+    if (h <= 0) continue;
+    if (spec.side === 'down') lhDown = Math.max(lhDown, h);
+    else lhUp = Math.max(lhUp, h);
+  }
 
-  let above = up, below = down;
-  if (a.labelSide === 'up') above = up + a.labelGap + lh;
-  else below = down + a.labelGap + lh;
+  const above = up + (lhUp > 0 ? a.labelGap + lhUp : 0);
+  const below = down + (lhDown > 0 ? a.labelGap + lhDown : 0);
 
   const half = a.fontSize * 0.6;   // 単位欄のぶん最低限確保
-  return { above: Math.max(above, half), below: Math.max(below, half), up, down, labelH: lh };
+  return { above: Math.max(above, half), below: Math.max(below, half), up, down };
 }
 
 /* ---------- 端の処理 ---------- */
@@ -228,28 +239,34 @@ function drawAxis(g, a, y) {
       const y2 = (a.tickSide === 'up') ? y : y + L;
       const t = E('line', {
         x1: r(x), y1: r(y1), x2: r(x), y2: r(y2),
-        stroke: a.color, 'stroke-width': r(Math.max(a.lineWidth * 0.85, 0.18)),
+        stroke: a.color, 'stroke-width': r(Math.max(a.lineWidth * 0.5, 0.2)),
       });
       if (a.tickStyle === 'dashed') t.setAttribute('stroke-dasharray', '0.9 0.7');
       g.appendChild(t);
     }
 
     const spec = resolveLabel(a, i);
+    const lift = Number(spec.lift) || 0;
+    const up = (spec.side === 'up');
+    const tipGap = 0.4;
+
     if (spec.mode !== 'none') {
       const { node, h } = labelBlock(spec, a);
-      const lift = Number(spec.lift) || 0;
-      const up = (a.labelSide === 'up');
       const top = up
         ? y - ex.up - a.labelGap - lift - h
         : y + ex.down + a.labelGap + lift;
       node.setAttribute('transform', `translate(${r(x)},${r(top)})`);
       g.appendChild(node);
 
+      // ラベルの端 → 目盛りの先端へ向かう矢印
       if (spec.pointer) {
-        const tipGap = 0.4;
         if (up) pointerArrow(g, x, top + h + 0.3, y - ex.up - tipGap, a);
         else pointerArrow(g, x, top - 0.3, y + ex.down + tipGap, a);
       }
+    } else if (spec.pointer) {
+      // ラベルを出さず、矢印だけで目盛りをさす
+      if (up) pointerArrow(g, x, y - ex.up - a.labelGap - lift, y - ex.up - tipGap, a);
+      else pointerArrow(g, x, y + ex.down + a.labelGap + lift, y + ex.down + tipGap, a);
     }
   }
 

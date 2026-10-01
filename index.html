@@ -92,10 +92,21 @@
         <label>ふりがな<input type="text" data-tick="ruby" placeholder="エックス" autocomplete="off"></label>
       </div>
 
-      <div class="row">
-        <label class="chk"><input type="checkbox" data-tick="pointer"> 引き出して矢印でさす</label>
-        <label class="inline">距離<input type="number" data-tick="lift" min="0" step="1" class="w-tiny">mm</label>
+      <div class="poprow">
+        <span class="flabel">出す位置</span>
+        <div class="seg sm" data-seg-tick="side">
+          <button type="button" data-v="auto">自動</button>
+          <button type="button" data-v="up">線の上</button>
+          <button type="button" data-v="down">線の下</button>
+        </div>
       </div>
+
+      <div class="row">
+        <label class="chk"><input type="checkbox" data-tick="pointer"> 矢印でさす</label>
+        <label class="inline">長さ<input type="number" data-tick="lift" min="0" step="1" class="w-tiny">mm</label>
+      </div>
+
+      <div class="row"><button id="btnMark" class="wide">↑ 記号で問う（反対側に ア・イ・ウ ＋矢印）</button></div>
       <div class="row">
         <label class="chk"><input type="checkbox" data-tick="tickShow"> 目盛りの線</label>
         <label class="chk" id="connWrap" hidden><input type="checkbox" id="tickConnector"> 縦の破線</label>

@@ -69,11 +69,36 @@ function imgFromBlob(b) {
   const s = toSVGString(svg);
   ok(s.includes('<svg') && s.includes('</svg>') && !s.includes('tick-hit'), `SVG文字列 ${s.length}文字・当たり判定を含まない`);
 
-  // --- 7. 等間隔の数直線 ---
-  const d2 = PRESETS.basic100.make();
+  // --- 7. 目盛りの多い数直線（大きい数③） ---
+  const d2 = PRESETS.oku3.make();
   const vb2 = render(d2, svg, { interactive: false });
-  ok(svg.querySelectorAll('line').length > 100, `0〜100の目盛り線 ${svg.querySelectorAll('line').length}本`);
-  ok(vb2.w > 150, `0〜100の幅 ${vb2.w.toFixed(1)}mm`);
+  ok(svg.querySelectorAll('line').length > 40, `6000万〜1億の目盛り線 ${svg.querySelectorAll('line').length}本`);
+  ok(svg.querySelectorAll('polygon').length === 3, `引き出し矢印 ${svg.querySelectorAll('polygon').length}本（□↓が3つ）`);
+  ok(svg.querySelectorAll('rect[fill=none]').length === 3, '□が3つ（右端が1億＝100000000を問う）');
+  ok(vb2.w > 130, `幅 ${vb2.w.toFixed(1)}mm`);
+
+  // --- 7b. 記号と矢印（数字は線の上・記号は線の下） ---
+  const d4 = PRESETS.mark.make();
+  render(d4, svg, { interactive: false });
+  const tx = [...svg.querySelectorAll('text')].map((t) => t.textContent);
+  ok(['ア', 'イ', 'ウ'].every((c) => tx.includes(c)), `記号 ア・イ・ウ が出ている`);
+  ok(svg.querySelectorAll('polygon').length === 3, `記号の矢印 ${svg.querySelectorAll('polygon').length}本`);
+  {
+    // 記号(ア)が線より下・数字(0)が線より上にあること
+    // 画面上の実際の位置で比べる（<g transform> の中にあるので y 属性では比べられない）
+    const ys = [...svg.querySelectorAll('text')];
+    const mark = ys.find((t) => t.textContent === 'ア');
+    const num = ys.find((t) => t.textContent === '10000');
+    const my = mark && mark.getBoundingClientRect().top;
+    const ny = num && num.getBoundingClientRect().top;
+    ok(mark && num && my > ny, `記号は線の下・数字は線の上（記号y=${(my||0).toFixed(0)} > 数字y=${(ny||0).toFixed(0)}）`);
+  }
+
+  // --- 7c. ラベルなしでも矢印だけ描ける（矢印が出ない不具合の再発防止） ---
+  const d5 = defaultDoc({ axes: [defaultAxis({ tickCount: 10, tickStep: 10, labelEvery: 10 })] });
+  setTick(d5.axes[0], 3, { lift: 6, pointer: true });   // mode は 'auto' のまま＝数字が出ない目盛り
+  render(d5, svg, { interactive: false });
+  ok(svg.querySelectorAll('polygon').length === 1, '数字の出ない目盛りでも矢印だけ描ける');
 
   // --- 8. □（穴埋め）と帯分数 ---
   const d3 = defaultDoc({ axes: [defaultAxis({ tickCount: 4, tickStep: 20, labelEvery: 0 })] });

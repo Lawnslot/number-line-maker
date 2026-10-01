@@ -73,6 +73,7 @@ function refresh({ skipPanel = false } = {}) {
 
   // プレビュー（中身の大きさだけ使う）
   const vb = render(doc, preview, { interactive: true, selected: sel });
+  preview.classList.toggle('checker', $('#chkChecker').checked);
   preview.style.width = `${(vb.w * zoom).toFixed(2)}mm`;
   preview.style.height = 'auto';
 
@@ -91,8 +92,10 @@ function refresh({ skipPanel = false } = {}) {
   if (!skipPanel) syncPanel();
   $('#zoomInfo').textContent = `${Math.round(zoom * 100)}%`;
 
-  // 編集窓はレイアウト確定後に目盛りのそばへ
-  requestAnimationFrame(placePop);
+  // 編集窓を目盛りのそばへ。
+  // ★requestAnimationFrame は画面が前面にないと発火しないことがあるので同期で呼ぶ
+  //   （2026-10-01: これが原因で「編集窓が開かない」ことがあった）
+  placePop();
 
   // 自動保存（リロード事故よけ）
   clearTimeout(saveTimer);
@@ -186,6 +189,10 @@ function syncPanel() {
       `${who}左から${sel.i}番目（値 ${fmtNum(av.start + av.valueStep * sel.i)}${av.labelSuffix || ''}）`;
     pop.dataset.mode = ov.mode;
     $$('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.m === ov.mode));
+    $$('[data-seg-tick]').forEach((seg) => {
+      const k = seg.dataset.segTick;
+      seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === (ov[k] || 'auto')));
+    });
     $$('[data-tick]').forEach((el) => writeControl(el, ov[el.dataset.tick]));
     $('#tickConnector').checked = doc.connectors.includes(sel.i);
   }
@@ -243,12 +250,35 @@ document.addEventListener('input', (ev) => {
   }
 });
 
+/* 編集窓: 出す位置（上／下）の切り替え */
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-seg-tick] button');
+  if (!b || !sel) return;
+  setTick(doc.axes[sel.ai], sel.i, { [b.parentElement.dataset.segTick]: b.dataset.v });
+  refresh();
+});
+
+/* 「記号で問う」＝ 数字の反対側に文字＋矢印を一発で用意する */
+$('#btnMark').onclick = () => {
+  if (!sel) return;
+  const a = doc.axes[sel.ai];
+  const opposite = a.labelSide === 'up' ? 'down' : 'up';
+  const used = new Set(Object.values(a.ticks).map((t) => t && t.text).filter(Boolean));
+  const next = ['ア', 'イ', 'ウ', 'エ', 'オ', 'カ'].find((c) => !used.has(c)) || 'ア';
+  setTick(a, sel.i, { mode: 'text', text: next, side: opposite, pointer: true, lift: 6 });
+  refresh();
+  const inp = pop.querySelector('[data-tick=text]');
+  if (inp) { inp.focus(); inp.select(); }
+};
+
 /* 編集窓: 出すものの切り替え */
 $('#modeSeg').addEventListener('click', (ev) => {
   const b = ev.target.closest('button');
   if (!b || !sel) return;
   setTick(doc.axes[sel.ai], sel.i, { mode: b.dataset.m });
   refresh();
+  const first = pop.querySelector(b.dataset.m === 'fraction' ? '[data-tick=num]' : '[data-tick=text]');
+  if (first && (b.dataset.m === 'text' || b.dataset.m === 'fraction')) { first.focus(); first.select(); }
 });
 
 /* 目盛りクリックで編集窓を開く */
@@ -268,7 +298,12 @@ document.addEventListener('pointerdown', (ev) => {
   if (ev.target.closest('#tickPop') || ev.target.closest('.tick-hit')) return;
   closePop();
 });
-document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closePop(); });
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') { closePop(); return; }
+  if (!sel || /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName)) return;
+  if (ev.key === 'ArrowLeft' && sel.i > 0) { sel = { ...sel, i: sel.i - 1 }; refresh(); ev.preventDefault(); }
+  if (ev.key === 'ArrowRight' && sel.i < doc.axes[sel.ai].tickCount) { sel = { ...sel, i: sel.i + 1 }; refresh(); ev.preventDefault(); }
+});
 
 /* 縦の破線 */
 $('#tickConnector').addEventListener('change', (ev) => {
@@ -350,7 +385,7 @@ $('#labelEverySel').addEventListener('change', () => {
 });
 
 /* 表示 */
-$('#chkChecker').onchange = (e) => $('#previewWrap').classList.toggle('checker', e.target.checked);
+$('#chkChecker').onchange = (e) => preview.classList.toggle('checker', e.target.checked);
 $('#btnZoomIn').onclick = () => { zoom = Math.min(6, zoom * 1.25); refresh({ skipPanel: true }); };
 $('#btnZoomOut').onclick = () => { zoom = Math.max(0.2, zoom / 1.25); refresh({ skipPanel: true }); };
 

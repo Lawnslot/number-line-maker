@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="utf-8"><title>実際に作ってみる</title>
+<style>
+ body{font:13px/1.6 -apple-system,"Hiragino Sans",sans-serif;padding:14px;background:#f3f4f6;margin:0}
+ h2{font-size:14px;margin:18px 0 6px}
+ iframe{width:1280px;height:600px;border:1px solid #ccc;display:block;margin-bottom:12px}
+ .out{background:#fff;border:1px solid #dfe3e8;border-radius:8px;padding:12px;margin-bottom:12px}
+ .out img{display:block;max-width:100%;background:#fff}
+ pre{margin:0;font-size:11px;white-space:pre-wrap}
+ .ng{color:#b00}
+</style>
+</head>
+<body>
+<!--
+  本物の画面（index.html）を iframe に読み込み、実際のボタン・入力を操作して
+  教科書「大きい数」練習⑥の数直線を作る。操作でつまずく箇所を洗い出すためのもの。
+-->
+<pre id="log">running...</pre>
+<iframe id="f"></iframe>
+<div id="outs"></div>
+
+<script type="module">
+const log = [];
+const say = (m, ng) => { log.push((ng ? 'NG  ' : '    ') + m); document.getElementById('log').textContent = log.join('\n'); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const f = document.getElementById('f');
+
+/* --- 本物のUIを触るための道具 --- */
+const setVal = (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+const setSel = (el, v) => { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+const setChk = (el, on) => {
+  if (el.checked === on) return;
+  el.checked = on;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+};
+const hit = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+function load(url) {
+  return new Promise((resolve) => {
+    f.onload = async () => {
+      const d = f.contentDocument;
+      for (let i = 0; i < 120; i++) {           // 起動待ち
+        if (d.querySelector('.tick-hit')) break;
+        await sleep(50);
+      }
+      resolve(d);
+    };
+    f.src = url;
+  });
+}
+
+/** 目盛りをクリックして編集窓を開く */
+async function pick(d, i, ai = 0) {
+  const t = d.querySelector(`.tick-hit[data-ai="${ai}"][data-i="${i}"]`);
+  if (!t) { say(`目盛り ${i} が見つからない`, true); return false; }
+  hit(t);
+  await sleep(30);
+  if (d.getElementById('tickPop').hidden) { say(`目盛り ${i}: 編集窓が開かない`, true); return false; }
+  return true;
+}
+
+/** 書き上がりを画像にして並べる */
+async function shot(d, title, note) {
+  const svg = d.getElementById('preview').cloneNode(true);
+  svg.querySelectorAll('.hits').forEach((n) => n.remove());
+  const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number);
+  const w = Math.round(vb[2] * 4.2), h = Math.round(vb[3] * 4.2);
+  svg.setAttribute('width', w); svg.setAttribute('height', h);
+  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const str = new XMLSerializer().serializeToString(svg);
+  const url = URL.createObjectURL(new Blob([str], { type: 'image/svg+xml' }));
+  const box = document.createElement('div');
+  box.className = 'out';
+  box.innerHTML = `<h2>${title}</h2><p>${note}　<b>${vb[2].toFixed(1)}×${vb[3].toFixed(1)}mm</b></p>`;
+  const img = new Image(); img.src = url; img.width = w;
+  box.appendChild(img);
+  document.getElementById('outs').appendChild(box);
+  await new Promise((r) => { img.onload = r; img.onerror = r; });
+}
+
+(async () => {
+
+  /* ============ ① 0〜100万・□2つ（位置を変更: 3 と 8） ============ */
+  {
+    const d = await load('../index.html?preset=basic10');
+    setVal(d.querySelector('[data-ax=start]'), 0);
+    setVal(d.querySelector('[data-ax=tickCount]'), 11);
+    setVal(d.getElementById('endValue'), 110);
+    setVal(d.querySelector('[data-ax=tickStep]'), 13);
+    setVal(d.querySelector('[data-ax=labelSuffix]'), '万');
+    setSel(d.getElementById('labelEverySel'), '5');
+    // 「5個ごとだけ長い」にする（詳しい設定の中）
+    hit(d.getElementById('btnMore')); await sleep(60);
+    setVal(d.querySelector('[data-ax=midEvery]'), 0);
+    setVal(d.querySelector('[data-ax=majorEvery]'), 5);
+    setVal(d.querySelector('[data-ax=lenMinor]'), 2.6);
+    setVal(d.querySelector('[data-ax=lenMajor]'), 3.8);
+    setVal(d.querySelector('[data-ax=lineWidth]'), 0.8);
+    setVal(d.querySelector('[data-ax=leadOut]'), 0);
+    setVal(d.querySelector('[data-ax=boxW]'), 14);
+    hit(d.getElementById('btnMore')); await sleep(40);
+
+    for (const i of [3, 8]) {
+      if (!await pick(d, i)) continue;
+      hit(d.querySelector('#modeSeg button[data-m=box]'));
+      await sleep(30);
+    }
+    hit(d.getElementById('popClose')); await sleep(60);
+    const boxes = d.querySelectorAll('#preview rect[fill=none]').length;
+    say(`① 0〜100万 / □ ${boxes}個（30万・80万の位置）`, boxes !== 2);
+    await shot(d, '① 0〜100万　□にあてはまる数は？', '□の位置は 30万 と 80万 に変更');
+  }
+
+  /* ============ ② 9000万〜1億・引き出し□3つ（位置を変更: 3/6/9） ============ */
+  {
+    const d = await load('../index.html?preset=basic10');
+    setVal(d.querySelector('[data-ax=start]'), 9000);
+    setVal(d.querySelector('[data-ax=tickCount]'), 10);
+    setVal(d.getElementById('endValue'), 10000);
+    setVal(d.querySelector('[data-ax=tickStep]'), 14);
+    setVal(d.querySelector('[data-ax=labelSuffix]'), '万');
+    setSel(d.getElementById('labelEverySel'), '10');
+    hit(d.getElementById('btnMore')); await sleep(60);
+    setVal(d.querySelector('[data-ax=midEvery]'), 0);
+    setVal(d.querySelector('[data-ax=majorEvery]'), 10);
+    setVal(d.querySelector('[data-ax=lenMinor]'), 2.6);
+    setVal(d.querySelector('[data-ax=lenMajor]'), 3.8);
+    setVal(d.querySelector('[data-ax=lineWidth]'), 0.8);
+    setVal(d.querySelector('[data-ax=leadOut]'), 0);
+    setVal(d.querySelector('[data-ax=boxW]'), 16);
+    hit(d.getElementById('btnMore')); await sleep(40);
+
+    // 右端は「1億」と書く
+    if (await pick(d, 10)) {
+      hit(d.querySelector('#modeSeg button[data-m=text]')); await sleep(30);
+      setVal(d.querySelector('[data-tick=text]'), '1億');
+    }
+    // 引き出した□で3か所を問う
+    for (const i of [3, 6, 9]) {
+      if (!await pick(d, i)) continue;
+      hit(d.querySelector('#modeSeg button[data-m=box]')); await sleep(30);
+      setChk(d.querySelector('[data-tick=pointer]'), true);
+      await sleep(30);
+    }
+    hit(d.getElementById('popClose')); await sleep(60);
+    const arrows = d.querySelectorAll('#preview polygon').length;
+    say(`② 9000万〜1億 / 引き出し矢印 ${arrows}本`, arrows !== 3);
+    await shot(d, '② 9000万〜1億　□にあてはまる数は？', '□の位置は 9300万・9600万・9900万 に変更');
+  }
+
+  /* ============ ③ 6000万〜1億・□（100000000 を問うのは必須） ============ */
+  {
+    const d = await load('../index.html?preset=basic10');
+    setVal(d.querySelector('[data-ax=start]'), 6000);
+    setVal(d.querySelector('[data-ax=tickCount]'), 40);
+    setVal(d.getElementById('endValue'), 10000);
+    setVal(d.querySelector('[data-ax=tickStep]'), 3.6);
+    setVal(d.querySelector('[data-ax=labelSuffix]'), '万');
+    setSel(d.getElementById('labelEverySel'), '10');
+    hit(d.getElementById('btnMore')); await sleep(60);
+    setVal(d.querySelector('[data-ax=midEvery]'), 5);
+    setVal(d.querySelector('[data-ax=majorEvery]'), 10);
+    setVal(d.querySelector('[data-ax=lenMinor]'), 1.8);
+    setVal(d.querySelector('[data-ax=lenMid]'), 2.4);
+    setVal(d.querySelector('[data-ax=lenMajor]'), 3.6);
+    setVal(d.querySelector('[data-ax=lineWidth]'), 0.8);
+    setVal(d.querySelector('[data-ax=leadOut]'), 0);
+    setVal(d.querySelector('[data-ax=boxW]'), 17);
+    hit(d.getElementById('btnMore')); await sleep(40);
+
+    // ★100000000（＝1億）を問う □。ここは必須
+    if (await pick(d, 40)) {
+      hit(d.querySelector('#modeSeg button[data-m=box]')); await sleep(30);
+      setChk(d.querySelector('[data-tick=pointer]'), true); await sleep(30);
+    }
+    for (const i of [14, 27]) {
+      if (!await pick(d, i)) continue;
+      hit(d.querySelector('#modeSeg button[data-m=box]')); await sleep(30);
+      setChk(d.querySelector('[data-tick=pointer]'), true); await sleep(30);
+    }
+    hit(d.getElementById('popClose')); await sleep(60);
+    const boxes = d.querySelectorAll('#preview rect[fill=none]').length;
+    const arrows = d.querySelectorAll('#preview polygon').length;
+    say(`③ 6000万〜1億 / □ ${boxes}個・矢印 ${arrows}本（右端の□＝100000000 を問う）`, boxes !== 3 || arrows !== 3);
+    await shot(d, '③ 6000万〜1億　□にあてはまる数は？',
+      '★右端の□が <b>100000000（1億）</b> を問う。ほかは 7400万・8700万');
+  }
+
+  /* ============ ④ 記号と矢印で問う（0〜70000・ア イ ウ） ============ */
+  {
+    const d = await load('../index.html?preset=basic10');
+    setVal(d.querySelector('[data-ax=start]'), 0);
+    setVal(d.querySelector('[data-ax=tickCount]'), 75);
+    setVal(d.getElementById('endValue'), 75000);
+    setVal(d.querySelector('[data-ax=tickStep]'), 2);
+    setSel(d.getElementById('labelEverySel'), '10');
+    hit(d.getElementById('btnMore')); await sleep(60);
+    setVal(d.querySelector('[data-ax=midEvery]'), 5);
+    setVal(d.querySelector('[data-ax=majorEvery]'), 10);
+    setVal(d.querySelector('[data-ax=lenMinor]'), 1.6);
+    setVal(d.querySelector('[data-ax=lenMid]'), 2.2);
+    setVal(d.querySelector('[data-ax=lenMajor]'), 3.2);
+    setVal(d.querySelector('[data-ax=lineWidth]'), 0.8);
+    setVal(d.querySelector('[data-ax=leadOut]'), 0);
+    setVal(d.querySelector('[data-ax=fontSize]'), 3.6);
+    hit(d.getElementById('btnMore')); await sleep(40);
+
+    // 「記号で問う」ボタン1発で、反対側に ア・イ・ウ ＋矢印
+    for (const i of [3, 20, 71]) {
+      if (!await pick(d, i)) continue;
+      hit(d.getElementById('btnMark'));
+      await sleep(40);
+    }
+    hit(d.getElementById('popClose')); await sleep(60);
+    const texts = [...d.querySelectorAll('#preview text')].map((t) => t.textContent);
+    const marks = ['ア', 'イ', 'ウ'].filter((c) => texts.includes(c)).length;
+    const arrows = d.querySelectorAll('#preview polygon').length;
+    say(`④ 記号 ${marks}個・矢印 ${arrows}本（線の下から上向きにさす）`, marks !== 3 || arrows !== 3);
+    await shot(d, '④ 記号と矢印で問う', 'ア・イ・ウ は「記号で問う」ボタン1回ずつ。数字は線の上、記号は線の下');
+  }
+
+  const ng = log.filter((l) => l.startsWith('NG')).length;
+  say(`\nRESULT ${ng === 0 ? 'ALL-OK' : ng + '-NG'}`);
+})().catch((e) => say('ERROR ' + e.message + '\n' + e.stack, true));
+</script>
+</body>
+</html>
