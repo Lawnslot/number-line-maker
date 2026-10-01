@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="utf-8"><title>selftest</title>
+<style>body{font-family:monospace;padding:12px}#stage{position:absolute;left:-9999px;top:0}</style>
+</head>
+<body>
+<!--
+  動作確認用ページ。ブラウザで開くと結果が表示される。
+  ヘッドレスでも確認できる:
+    chrome --headless --virtual-time-budget=6000 --dump-dom \
+      "http://localhost:8777/tools/selftest.html" | grep RESULT
+-->
+<div id="stage"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+<pre id="out">running...</pre>
+
+<script type="module">
+import { PRESETS, defaultDoc, defaultAxis, setTick } from '../js/model.js';
+import { render } from '../js/render.js';
+import { toPNGBlob, toSVGString, mmToPx } from '../js/export.js';
+
+const log = [];
+const ok = (c, m) => log.push(`${c ? 'PASS' : 'FAIL'}  ${m}`);
+
+function imgFromBlob(b) {
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(b);
+    const i = new Image();
+    i.onload = () => { URL.revokeObjectURL(u); res(i); };
+    i.onerror = rej; i.src = u;
+  });
+}
+
+(async () => {
+  const svg = document.getElementById('svg');
+
+  // --- 1. 比例数直線が描けるか ---
+  const doc = PRESETS.ratio2.make();
+  const vb = render(doc, svg, { interactive: false });
+  ok(vb.w > 50 && vb.h > 10, `比例数直線の寸法 ${vb.w.toFixed(1)}x${vb.h.toFixed(1)}mm`);
+  ok(svg.querySelectorAll('text').length >= 8, `文字要素 ${svg.querySelectorAll('text').length}個（分数・ルビ・単位を含む）`);
+  ok(svg.querySelectorAll('line[stroke-dasharray]').length >= 2, '縦の破線が引かれている');
+
+  // --- 2. 透過PNGが書き出せるか ---
+  const blob = await toPNGBlob(svg, 300);
+  ok(blob && blob.size > 1000, `PNG生成 ${blob ? (blob.size / 1024).toFixed(1) : 0}KB`);
+  const img = await imgFromBlob(blob);
+  ok(img.width === mmToPx(vb.w, 300), `PNG幅 ${img.width}px（期待 ${mmToPx(vb.w, 300)}px）`);
+
+  // --- 3. 背景が本当に透過しているか（四隅のアルファが0） ---
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const cx = c.getContext('2d');
+  cx.drawImage(img, 0, 0);
+  const corners = [[0, 0], [c.width - 1, 0], [0, c.height - 1], [c.width - 1, c.height - 1]];
+  const alphas = corners.map(([x, y]) => cx.getImageData(x, y, 1, 1).data[3]);
+  ok(alphas.every((a) => a === 0), `四隅のアルファ = ${alphas.join(',')}（0なら透過）`);
+
+  // --- 4. 中身がちゃんと描かれているか（黒い画素が存在する） ---
+  const all = cx.getImageData(0, 0, c.width, c.height).data;
+  let inkPx = 0;
+  for (let i = 3; i < all.length; i += 4) if (all[i] > 128) inkPx++;
+  ok(inkPx > 500, `不透明な画素 ${inkPx}個（線と文字が描かれている）`);
+
+  // --- 5. 文字がフォールバックせず描けているか（文字の幅を測る） ---
+  const t = svg.querySelector('text');
+  ok(t && t.getComputedTextLength() > 0, `文字の実測幅 ${t ? t.getComputedTextLength().toFixed(2) : 0}mm`);
+
+  // --- 6. SVG書き出し ---
+  const s = toSVGString(svg);
+  ok(s.includes('<svg') && s.includes('</svg>') && !s.includes('tick-hit'), `SVG文字列 ${s.length}文字・当たり判定を含まない`);
+
+  // --- 7. 等間隔の数直線 ---
+  const d2 = PRESETS.basic100.make();
+  const vb2 = render(d2, svg, { interactive: false });
+  ok(svg.querySelectorAll('line').length > 100, `0〜100の目盛り線 ${svg.querySelectorAll('line').length}本`);
+  ok(vb2.w > 150, `0〜100の幅 ${vb2.w.toFixed(1)}mm`);
+
+  // --- 8. □（穴埋め）と帯分数 ---
+  const d3 = defaultDoc({ axes: [defaultAxis({ tickCount: 4, tickStep: 20, labelEvery: 0 })] });
+  setTick(d3.axes[0], 1, { mode: 'box' });
+  setTick(d3.axes[0], 2, { mode: 'fraction', whole: '1', num: '2', den: '3' });
+  setTick(d3.axes[0], 3, { mode: 'text', text: 'ア', ruby: 'あ' });
+  render(d3, svg, { interactive: false });
+  ok(svg.querySelectorAll('rect[fill=none], rect[fill="none"]').length === 1, '□が1つ描かれている（塗りなし＝透過）');
+
+  // --- 目視用: 書き出したPNGを色付き背景の上に並べる（透過と字形の確認） ---
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:14px;padding:14px;background:#ffd9e8;display:inline-block;border-radius:8px';
+  const shown = await imgFromBlob(blob);
+  shown.style.width = '460px';
+  box.appendChild(shown);
+  document.body.appendChild(box);
+
+  const fails = log.filter((l) => l.startsWith('FAIL')).length;
+  document.getElementById('out').textContent =
+    log.join('\n') + `\n\nRESULT ${fails === 0 ? 'ALL-PASS' : fails + '-FAILED'} (${log.length} checks)`;
+})().catch((e) => {
+  document.getElementById('out').textContent = 'RESULT ERROR ' + e.message + '\n' + e.stack;
+});
+</script>
+</body>
+</html>
