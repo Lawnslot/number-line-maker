@@ -9,12 +9,12 @@
    ============================================================ */
 
 import {
-  PAPERS, PRESETS, defaultDoc, defaultAxis, fmtNum,
+  PAPERS, PRESETS, defaultDoc, defaultAxis, fmtValue, normalizeDoc,
   tickOf, setTick, applySync, cloneDoc,
-} from './model.js';
-import { render, renderPage } from './render.js';
-import { toPNGBlob, toSVGString, toThumbnail, download, safeName, mmToPx } from './export.js';
-import { storage } from './storage.js';
+} from './model.js?v=6';
+import { render, renderPage } from './render.js?v=6';
+import { toPNGBlob, toSVGString, toThumbnail, download, safeName, mmToPx } from './export.js?v=6';
+import { storage } from './storage.js?v=6';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -24,7 +24,8 @@ let doc = defaultDoc();
 let curId = null;      // ライブラリ上のID（未保存なら null）
 let axIdx = 0;         // 編集中の軸
 let sel = null;        // 選択中の目盛り {ai, i}
-let zoom = 1;
+let zoom = null;   // null = 画面の幅に合わせる（目盛りを押しやすい大きさにする）
+let zoomNow = 1;   // いま実際に掛かっている倍率
 
 const preview = $('#preview');
 const pagePreview = $('#pagePreview');
@@ -74,7 +75,11 @@ function refresh({ skipPanel = false } = {}) {
   // プレビュー（中身の大きさだけ使う）
   const vb = render(doc, preview, { interactive: true, selected: sel });
   preview.classList.toggle('checker', $('#chkChecker').checked);
-  preview.style.width = `${(vb.w * zoom).toFixed(2)}mm`;
+  const PX_PER_MM = 96 / 25.4;
+  const avail = $('#previewWrap').clientWidth - 36;
+  const fit = Math.max(0.5, Math.min(2.2, avail / (vb.w * PX_PER_MM)));
+  zoomNow = zoom ?? fit;
+  preview.style.width = `${(vb.w * zoomNow).toFixed(2)}mm`;
   preview.style.height = 'auto';
 
   $('#sizeInfo').textContent =
@@ -90,7 +95,8 @@ function refresh({ skipPanel = false } = {}) {
   }
 
   if (!skipPanel) syncPanel();
-  $('#zoomInfo').textContent = `${Math.round(zoom * 100)}%`;
+  $('#zoomInfo').textContent = `${Math.round(zoomNow * 100)}%`;
+  $('#btnZoomFit').disabled = (zoom === null);
 
   // 編集窓を目盛りのそばへ。
   // ★requestAnimationFrame は画面が前面にないと発火しないことがあるので同期で呼ぶ
@@ -102,6 +108,13 @@ function refresh({ skipPanel = false } = {}) {
   saveTimer = setTimeout(() => {
     storage.saveCurrent({ doc, curId, axIdx, name: $('#docName').value, unitName: $('#docUnit').value });
   }, 400);
+}
+
+function showStepHint(a) {
+  const mm = Math.round(a.tickStep * a.tickCount * 10) / 10;
+  $('#stepHint').textContent =
+    `1目盛り = ${fmtValue(a, a.valueStep)}${a.labelSuffix || ''}　／　` +
+    `${fmtValue(a, a.start)} から ${fmtValue(a, a.start + a.valueStep * a.tickCount)} まで　／　線の長さ ${mm}mm`;
 }
 
 function syncPanel() {
@@ -137,13 +150,12 @@ function syncPanel() {
   }
 
   // おわりの数（はじめ・目盛りの数から 1目盛りの値を逆算して表示）
-  writeControl($('#endValue'), fmtNum(a.start + a.valueStep * a.tickCount));
-  $('#stepHint').textContent =
-    `1目盛り = ${fmtNum(a.valueStep)}${a.labelSuffix || ''}　／　線の長さ ${fmtNum(a.tickStep * a.tickCount)}mm`;
+  writeControl($('#endValue'), String(Math.round((a.start + a.valueStep * a.tickCount) * 1e8) / 1e8));
+  showStepHint(a);
 
   // 数字を出す間隔（一覧にない値なら足す）
   const les = $('#labelEverySel');
-  if (![...les.options].some((o) => Number(o.value) === a.labelEvery)) {
+  if (![...les.options].some((o) => o.value === String(a.labelEvery))) {
     const o = document.createElement('option');
     o.value = String(a.labelEvery);
     o.textContent = `${a.labelEvery}目盛りごと`;
@@ -186,7 +198,7 @@ function syncPanel() {
     const ov = tickOf(av, sel.i);
     const who = n > 1 ? `${n === 2 ? (sel.ai === 0 ? '上の線' : '下の線') : `${sel.ai + 1}本目`}・` : '';
     $('#tickWho').textContent =
-      `${who}左から${sel.i}番目（値 ${fmtNum(av.start + av.valueStep * sel.i)}${av.labelSuffix || ''}）`;
+      `${who}${fmtValue(av, av.start + av.valueStep * sel.i)}${av.labelSuffix || ''} の目盛り`;
     pop.dataset.mode = ov.mode;
     $$('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.m === ov.mode));
     $$('[data-seg-tick]').forEach((seg) => {
@@ -229,10 +241,21 @@ document.addEventListener('input', (ev) => {
   if (el.dataset.ax) {
     const k = el.dataset.ax;
     const v = readControl(el);
-    if (doc.syncTicks && SYNC_KEYS.has(k)) doc.axes.forEach((a) => { a[k] = v; });
-    else axis()[k] = v;
+    // 打っている途中の「空」や 0 は取り込まない（目盛りが消えたり、線が崩れたりするため）
+    if (el.type === 'number' && v === null) return;
+    if ((k === 'tickCount' || k === 'tickStep') && !(v > 0)) return;
+
+    const targets = (doc.syncTicks && SYNC_KEYS.has(k)) ? doc.axes : [axis()];
+    for (const a of targets) {
+      // ★「おわりの数」は動かさない。はじめの数・目盛りの数を変えたら、1目盛りの値のほうを計算し直す
+      //   （以前は 1目盛りの値を固定していたので、目盛りの数を変えると おわりの数 が勝手に変わった）
+      const end = a.start + a.valueStep * a.tickCount;
+      a[k] = (k === 'tickCount') ? Math.floor(v) : v;
+      if ((k === 'start' || k === 'tickCount') && a.tickCount > 0) a.valueStep = (end - a.start) / a.tickCount;
+    }
     refresh({ skipPanel: true });
-    if (k === 'labelSuffix' || k === 'unit') syncPanel();
+    showStepHint(axis());
+    if (k === 'labelSuffix' || k === 'unit' || k === 'kanji') syncPanel();
     return;
   }
 
@@ -374,20 +397,22 @@ $('#endValue').addEventListener('input', () => {
   if (!Number.isFinite(end) || a.tickCount <= 0) return;
   a.valueStep = (end - a.start) / a.tickCount;
   refresh({ skipPanel: true });
-  $('#stepHint').textContent =
-    `1目盛り = ${fmtNum(a.valueStep)}${a.labelSuffix || ''}　／　線の長さ ${fmtNum(a.tickStep * a.tickCount)}mm`;
+  showStepHint(a);
 });
 
 /* 数字を出す間隔 */
 $('#labelEverySel').addEventListener('change', () => {
-  axis().labelEvery = Number($('#labelEverySel').value) || 0;
+  const v = $('#labelEverySel').value;
+  axis().labelEvery = (v === 'auto' || v === 'ends') ? v : (Number(v) || 0);
   refresh();
 });
 
 /* 表示 */
 $('#chkChecker').onchange = (e) => preview.classList.toggle('checker', e.target.checked);
-$('#btnZoomIn').onclick = () => { zoom = Math.min(6, zoom * 1.25); refresh({ skipPanel: true }); };
-$('#btnZoomOut').onclick = () => { zoom = Math.max(0.2, zoom / 1.25); refresh({ skipPanel: true }); };
+$('#btnZoomIn').onclick = () => { zoom = Math.min(6, zoomNow * 1.25); refresh({ skipPanel: true }); };
+$('#btnZoomOut').onclick = () => { zoom = Math.max(0.2, zoomNow / 1.25); refresh({ skipPanel: true }); };
+$('#btnZoomFit').onclick = () => { zoom = null; refresh({ skipPanel: true }); };
+window.addEventListener('resize', () => refresh({ skipPanel: true }));
 
 /* 詳しい設定 */
 $('#btnMore').onclick = () => {
@@ -427,7 +452,8 @@ async function saveWork({ asNew = false } = {}) {
 
 $('#btnSave').onclick = async () => {
   await saveWork();
-  toast('保存しました');
+  const u = await storage.usage();
+  toast(`ライブラリに保存しました（全${u.count}件）。「ライブラリ」からいつでも開けます`);
 };
 
 $('#btnDup').onclick = async () => {
@@ -502,7 +528,7 @@ async function renderLib() {
     card.querySelector('[data-act=open]').onclick = async () => {
       const rec = await storage.get(r.id);
       if (!rec) return;
-      doc = { ...defaultDoc(), ...cloneDoc(rec.doc) };
+      doc = normalizeDoc(cloneDoc(rec.doc));
       curId = rec.id; axIdx = 0; sel = null;
       $('#docName').value = rec.name || '';
       $('#docUnit').value = rec.unitName || '';
@@ -557,10 +583,67 @@ $('#libFile').onchange = async (ev) => {
   ev.target.value = '';
 };
 
+/* ---------- リンクで作品を受け取る ---------- */
+
+/**
+ * URL の #import=… に入っている作品をライブラリへ保存する。
+ * 別の端末・別の人へ「この数直線」を渡すための入口。同じ名前・同じ中身のものは二重に入れない。
+ * @returns {Promise<number>} 新しく入れた件数（#import が無ければ -1）
+ */
+async function importFromHash() {
+  const m = location.hash.match(/[#&]import=([^&]+)/);
+  if (!m) return -1;
+  let items;
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    items = JSON.parse(new TextDecoder().decode(bytes));
+  } catch (e) {
+    alert('リンクの中身を読めませんでした。');
+    return 0;
+  }
+  history.replaceState(null, '', location.pathname + location.search);
+
+  const have = await storage.list();
+  let added = 0, lastId = null;
+  for (const it of items) {
+    if (!it || !it.doc) continue;
+    const d = normalizeDoc(it.doc);
+    const same = [];
+    for (const h of have) if (h.name === it.name) same.push(await storage.get(h.id));
+    const dup = same.find((r) => r && JSON.stringify(normalizeDoc(r.doc)) === JSON.stringify(d));
+    if (dup) { lastId = dup.id; continue; }
+    // サムネイルを作るために一度プレビューへ描く
+    doc = d; axIdx = 0; sel = null;
+    render(doc, preview, { interactive: false });
+    const thumb = await toThumbnail(preview, 200);
+    lastId = await storage.save({
+      id: null, name: it.name || '名前のない数直線', unitName: it.unitName || '', memo: '', doc: cloneDoc(d), thumb,
+    });
+    added++;
+  }
+  if (lastId) {
+    const rec = await storage.get(lastId);
+    doc = normalizeDoc(cloneDoc(rec.doc));
+    curId = rec.id; axIdx = 0; sel = null;
+    $('#docName').value = rec.name || '';
+    $('#docUnit').value = rec.unitName || '';
+  }
+  refresh();
+  await renderLib();
+  libDlg.showModal();
+  const total = (await storage.usage()).count;
+  toast(added ? `${added}件をライブラリに保存しました（全${total}件）` : 'すでにライブラリに入っています');
+  document.title = `数直線メーカー（ライブラリ ${total}件）`;
+  return added;
+}
+
 /* ---------- 起動 ---------- */
 
 (async function boot() {
   // ?preset=oku2 で型から開く。&sel=5 で目盛りを選んだ状態にする（動作確認用）
+  if (await importFromHash() >= 0) return;
+
   const q = new URLSearchParams(location.search);
   if (q.get('preset') && PRESETS[q.get('preset')]) {
     doc = PRESETS[q.get('preset')].make();
@@ -571,7 +654,7 @@ $('#libFile').onchange = async (ev) => {
 
   const saved = await storage.loadCurrent();
   if (saved && saved.doc) {
-    doc = { ...defaultDoc(), ...saved.doc };
+    doc = normalizeDoc(saved.doc);
     curId = saved.curId ?? null;
     axIdx = saved.axIdx ?? 0;
     $('#docName').value = saved.name || '';

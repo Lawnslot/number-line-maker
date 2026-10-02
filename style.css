@@ -171,3 +171,15 @@ button.wide{width:100%; font-size:12px}
   opacity:0; pointer-events:none; transition:.22s; z-index:99;
 }
 #toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+
+
+/* ---------- 2026-10-02: 入力欄の幅・版表示 ---------- */
+.field input.w-num{width:132px}      /* 100000000 が切れない幅 */
+.field input.w-small{width:78px}
+.field select.w-sel{width:178px}
+.chkfield .chk{display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--ink); height:32px}
+#ver{font-size:10px; font-weight:400; color:var(--sub); margin-left:2px}
+#previewWrap{min-height:120px; align-items:center}
+.stagehint b{color:var(--ink)}
+.field input[type=checkbox]{width:auto}
+#topbar input#docName{width:300px}

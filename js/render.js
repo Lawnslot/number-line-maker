@@ -7,7 +7,7 @@
    ・背景は一切塗らない（＝透過PNGを担保する）
    ============================================================ */
 
-import { tickValue, fmtNum, tickLevel, tickLength, tickOf, axisLineLength } from './model.js';
+import { tickValue, fmtValue, tickLength, tickOf, axisLineLength } from './model.js?v=6';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -58,7 +58,7 @@ function resolveLabel(a, i) {
     case 'box':
       return { mode: 'box', boxW: ov.boxW ?? a.boxW, boxH: ov.boxH ?? a.boxH, ...common };
     default: // 'auto'
-      if (a.labelEvery > 0 && i % a.labelEvery === 0) {
+      if (autoLabelSet(a).has(i)) {
         return { mode: 'text', text: autoText(a, i), ...common };
       }
       // ★ここで ...common を落とすと「数字が出ない目盛りでは矢印も出ない」になる
@@ -70,9 +70,76 @@ function resolveLabel(a, i) {
 /** 自動ラベルの文字列（「50」＋「万」＝「50万」。0 には付けない設定あり） */
 function autoText(a, i) {
   const v = tickValue(a, i);
-  const body = fmtNum(v);
+  const body = fmtValue(a, v);
   if (a.suffixSkipZero && v === 0) return body;
   return (a.labelPrefix || '') + body + (a.labelSuffix || '');
+}
+
+/* ---------- 数字を出す目盛りを決める ---------- */
+
+let autoCache = new WeakMap();   // 1回の描画のあいだだけ使う（buildArt の先頭で作り直す）
+
+/** 手で置いたラベル（□・文字・分数）の横幅の半分。引き出してあるものは数字の段に居ないので 0 */
+function manualHalfWidth(a, ov) {
+  const fs = a.fontSize;
+  if ((Number(ov.lift) || 0) >= fs * 0.9) return 0;
+  if (ov.side === 'up' || ov.side === 'down') { if (ov.side !== a.labelSide) return 0; }
+  if (ov.mode === 'box') return Number(ov.boxW ?? a.boxW) / 2;
+  if (ov.mode === 'text') return estW(ov.text, fs) / 2;
+  if (ov.mode === 'fraction') {
+    return (Math.max(estW(ov.num, fs), estW(ov.den, fs)) + fs * 0.4 + (ov.whole ? estW(ov.whole, fs) : 0)) / 2;
+  }
+  return 0;
+}
+
+/**
+ * 自動の数字を出す目盛りの番号の集合。
+ *  ・'auto' … 数字どうしが重ならない、いちばん細かい間隔を選ぶ
+ *  ・'ends' … 両はしだけ
+ *  ・数値   … その個数ごと
+ * どの場合も、手で置いた □ や文字に重なる数字は出さない（重なった数直線は使えないため）。
+ */
+function autoLabelSet(a) {
+  const hit = autoCache.get(a);
+  if (hit) return hit;
+
+  const n = Math.max(0, Math.floor(Number(a.tickCount) || 0));
+  const fs = a.fontSize;
+  const step = Number(a.tickStep) || 0;
+  const set = new Set();
+
+  if (a.labelEvery === 'ends') {
+    set.add(0); set.add(n);
+  } else if (a.labelEvery === 'auto') {
+    let k = 1;
+    for (const c of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]) {
+      k = c;
+      let maxW = 0;
+      for (let i = 0; i <= n; i += c) maxW = Math.max(maxW, estW(autoText(a, i), fs));
+      if (c * step >= maxW + fs * 0.45) break;
+    }
+    for (let i = 0; i <= n; i += k) set.add(i);
+  } else {
+    const k = Math.floor(Number(a.labelEvery) || 0);
+    if (k > 0) for (let i = 0; i <= n; i += k) set.add(i);
+  }
+
+  // 手で置いたものと重なる数字を引く
+  for (const key of Object.keys(a.ticks || {})) {
+    const j = Number(key);
+    const ov = tickOf(a, j);
+    if (ov.mode === 'auto') continue;
+    set.delete(j);                       // その目盛り自身は手で決めたものが出る
+    const hw = manualHalfWidth(a, ov);
+    if (hw <= 0) continue;
+    for (const i of [...set]) {
+      const need = hw + estW(autoText(a, i), fs) / 2 + fs * 0.15;
+      if (Math.abs(i - j) * step < need) set.delete(i);
+    }
+  }
+
+  autoCache.set(a, set);
+  return set;
 }
 
 /** ラベル1つ分の高さ（mm）。labelBlock() と必ず一致させること */
@@ -283,6 +350,7 @@ function drawAxis(g, a, y) {
 
 /** 作品本体の <g> と各軸の y 座標を返す */
 export function buildArt(doc) {
+  autoCache = new WeakMap();
   const g = E('g', { class: 'art' });
   const ext = doc.axes.map(axisExtents);
 

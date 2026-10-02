@@ -19,6 +19,9 @@ export function toSVGString(svgEl, { dpi = null } = {}) {
 
   // 当たり判定は書き出さない
   clone.querySelectorAll('.hits').forEach((n) => n.remove());
+  // 画面表示用の拡大率・市松模様は書き出しに持ち込まない
+  clone.removeAttribute('style');
+  clone.removeAttribute('class');
 
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');

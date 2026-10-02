@@ -31,10 +31,12 @@ export function defaultAxis(over = {}) {
   return {
     // --- 等間隔の素 ---
     tickCount: 10,      // 目盛りの区間数（目盛り線は 0〜tickCount の tickCount+1 本）
-    tickStep: 8,        // 1目盛りの幅 (mm)
+    tickStep: 12,       // 1目盛りの幅 (mm)
     start: 0,           // 目盛り0の値
     valueStep: 1,       // 1目盛りあたりの値
-    labelEvery: 1,      // 何目盛りごとに数字を出すか（0で自動ラベルなし）
+    labelEvery: 'auto', // 数字を出す目盛り。'auto'=重ならない間隔を自動で選ぶ／'ends'=両はしだけ
+                        //   ／数値=その個数ごと／0=出さない
+    kanji: true,        // ★1万以上を「50万」「1億」と書く（1000000 と打てば 100万 と出る）
     labelPrefix: '',    // 数字の前に付ける文字
     labelSuffix: '',    // ★数字の後ろに付ける文字（「万」「億」「cm」など）
     suffixSkipZero: true, // 0 には付けない（「0万」ではなく「0」にする）
@@ -99,7 +101,7 @@ export function defaultTickOverride(over = {}) {
 /** ドキュメント全体の既定値 */
 export function defaultDoc(over = {}) {
   return {
-    schema: 1,
+    schema: 2,
     name: '',
     unitName: '',            // 単元名（絞り込み用）
     memo: '',
@@ -133,6 +135,42 @@ export function fmtNum(v) {
   const r = Math.round(v * 1e8) / 1e8;
   if (Object.is(r, -0)) return '0';
   return String(r);
+}
+
+/** 大きい数を教科書の書き方にする: 500000 → 50万 / 90000000 → 9000万 / 100000000 → 1億 */
+export function fmtKanji(v) {
+  const r = Math.round(v * 1e8) / 1e8;
+  if (!Number.isInteger(r) || Math.abs(r) < 10000) return fmtNum(r);
+  let n = Math.abs(r);
+  const cho = Math.floor(n / 1e12); n %= 1e12;
+  const oku = Math.floor(n / 1e8); n %= 1e8;
+  const man = Math.floor(n / 1e4);
+  const rest = n % 1e4;
+  return (r < 0 ? '-' : '') +
+    (cho ? cho + '兆' : '') + (oku ? oku + '億' : '') + (man ? man + '万' : '') + (rest ? rest : '');
+}
+
+/** 軸の設定に合わせて数を文字にする */
+export function fmtValue(axis, v) {
+  return axis.kanji !== false ? fmtKanji(v) : fmtNum(v);
+}
+
+/**
+ * 保存されていた古い作品を今の形にそろえる。
+ * schema 1 の作品は「9000 と打って、うしろに 万 を付ける」方式で作られているので、
+ * 万・億の自動表記を切っておく（入れると「1万万」になる）。
+ */
+export function normalizeDoc(raw) {
+  const old = (raw.schema || 1) < 2;
+  const doc = { ...defaultDoc(), ...raw, schema: 2 };
+  doc.axes = (raw.axes && raw.axes.length ? raw.axes : [defaultAxis()]).map((a) => {
+    const ax = { ...defaultAxis(), ...a, ticks: { ...(a.ticks || {}) } };
+    if (old && a.kanji === undefined) ax.kanji = false;
+    if (old && a.labelEvery === undefined) ax.labelEvery = 1;
+    return ax;
+  });
+  doc.connectors = Array.isArray(raw.connectors) ? [...raw.connectors] : [];
+  return doc;
 }
 
 /** 目盛り i の階層（'major' | 'mid' | 'minor'） */
@@ -191,22 +229,16 @@ export function cloneDoc(doc) {
 export const PRESETS = {
   basic10: {
     label: '0〜10（基本）',
-    make: () => defaultDoc({
-      axes: [defaultAxis({ tickCount: 10, tickStep: 12, labelEvery: 1, midEvery: 5, majorEvery: 10 })],
-    }),
+    make: () => defaultDoc({ axes: [defaultAxis({ tickCount: 10, labelEvery: 1 })] }),
   },
 
-  /* 教科書「大きい数」練習⑥ の3本。実際に作った設定をそのまま型にしてある */
+  /* 教科書「大きい数」練習⑥ の3本。数は教科書どおりの大きさで入れてある
+     （1000000 と入れれば「100万」、100000000 と入れれば「1億」と出る） */
   oku1: {
     label: '大きい数① 0〜100万',
     make: () => {
       const d = defaultDoc({
-        axes: [defaultAxis({
-          tickCount: 11, tickStep: 13, start: 0, valueStep: 10,
-          labelEvery: 5, labelSuffix: '万',
-          midEvery: 0, majorEvery: 5, lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.8,
-          leadOut: 0, boxW: 14,
-        })],
+        axes: [defaultAxis({ tickCount: 10, start: 0, valueStep: 100000, labelEvery: 5 })],
       });
       setTick(d.axes[0], 3, { mode: 'box' });
       setTick(d.axes[0], 8, { mode: 'box' });
@@ -217,14 +249,8 @@ export const PRESETS = {
     label: '大きい数② 9000万〜1億',
     make: () => {
       const d = defaultDoc({
-        axes: [defaultAxis({
-          tickCount: 10, tickStep: 14, start: 9000, valueStep: 100,
-          labelEvery: 10, labelSuffix: '万', suffixSkipZero: false,
-          midEvery: 0, majorEvery: 10, lenMinor: 2.6, lenMid: 2.6, lenMajor: 3.8,
-          leadOut: 0, boxW: 16,
-        })],
+        axes: [defaultAxis({ tickCount: 10, start: 90000000, valueStep: 1000000, labelEvery: 'ends' })],
       });
-      setTick(d.axes[0], 10, { mode: 'text', text: '1億' });
       for (const i of [3, 6, 9]) setTick(d.axes[0], i, { mode: 'box', lift: 7, pointer: true });
       return d;
     },
@@ -234,8 +260,7 @@ export const PRESETS = {
     make: () => {
       const d = defaultDoc({
         axes: [defaultAxis({
-          tickCount: 40, tickStep: 3.6, start: 6000, valueStep: 100,
-          labelEvery: 10, labelSuffix: '万', suffixSkipZero: false,
+          tickCount: 40, tickStep: 3.6, start: 60000000, valueStep: 1000000, labelEvery: 10,
           midEvery: 5, majorEvery: 10, lenMinor: 1.8, lenMid: 2.4, lenMajor: 3.6,
           leadOut: 0, boxW: 17,
         })],
@@ -251,7 +276,7 @@ export const PRESETS = {
     make: () => {
       const d = defaultDoc({
         axes: [defaultAxis({
-          tickCount: 75, tickStep: 2, start: 0, valueStep: 1000,
+          tickCount: 75, tickStep: 2, start: 0, valueStep: 1000, kanji: false,
           labelEvery: 10, midEvery: 5, majorEvery: 10,
           lenMinor: 1.6, lenMid: 2.2, lenMajor: 3.2,
           fontSize: 3.6, leadOut: 0,
@@ -268,12 +293,7 @@ export const PRESETS = {
 
   decimal: {
     label: '0〜1（小数）',
-    make: () => defaultDoc({
-      axes: [defaultAxis({
-        tickCount: 10, tickStep: 12, valueStep: 0.1, labelEvery: 1,
-        midEvery: 5, majorEvery: 10,
-      })],
-    }),
+    make: () => defaultDoc({ axes: [defaultAxis({ tickCount: 10, valueStep: 0.1, labelEvery: 1 })] }),
   },
 
   ratio2: {

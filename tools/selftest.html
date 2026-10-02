@@ -115,6 +115,50 @@ function imgFromBlob(b) {
   const thKB = (th.length * 2) / 1024;   // UTF-16で保存されるので ×2
   ok(thKB < 12, `サムネイル1件 ${thKB.toFixed(1)}KB（12KB未満なら400件でも5MBに収まる）`);
 
+  // --- 10. 教科書どおりの数を入れたとき（2026-10-02: 本人が作れなかった原因の再発防止） ---
+  const { fmtKanji, normalizeDoc } = await import('../js/model.js');
+  ok(fmtKanji(1000000) === '100万' && fmtKanji(90000000) === '9000万' && fmtKanji(100000000) === '1億',
+    `万・億の表記: ${fmtKanji(1000000)} / ${fmtKanji(90000000)} / ${fmtKanji(100000000)}`);
+
+  const labelsOf = () => [...svg.querySelectorAll('.art text')];
+  const overlaps = () => {
+    // 数字どうし・数字と□が画面上で重なっていないか（同じ高さの段にあるものだけ比べる）
+    const rs = [...svg.querySelectorAll('.art text, .art rect')].map((e) => e.getBoundingClientRect())
+      .filter((r) => r.width > 0);
+    let n = 0;
+    for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
+      const a = rs[i], b = rs[j];
+      if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) n++;
+    }
+    return n;
+  };
+
+  // 0〜1000000 を 10目盛り・おまかせ → 数字が重ならない
+  const e1 = defaultDoc({ axes: [defaultAxis({ tickCount: 10, start: 0, valueStep: 100000 })] });
+  render(e1, svg, { interactive: false });
+  ok(overlaps() === 0, `0〜100万（おまかせ）: 数字の重なり ${overlaps()}か所 / ${labelsOf().map((t) => t.textContent).join(' ')}`);
+
+  // □を置いたら、隣の数字は □ に重ならない
+  setTick(e1.axes[0], 3, { mode: 'box' });
+  setTick(e1.axes[0], 8, { mode: 'box' });
+  render(e1, svg, { interactive: false });
+  ok(overlaps() === 0, `□を30万・80万に置く: 重なり ${overlaps()}か所 / ${labelsOf().map((t) => t.textContent).join(' ')}`);
+
+  // 9000万〜1億・両はしだけ → 「9000万」と「1億」だけが出る
+  const e2 = defaultDoc({ axes: [defaultAxis({ tickCount: 10, start: 90000000, valueStep: 1000000, labelEvery: 'ends' })] });
+  render(e2, svg, { interactive: false });
+  ok(labelsOf().map((t) => t.textContent).join('|') === '9000万|1億', `両はしだけ: ${labelsOf().map((t) => t.textContent).join(' / ')}`);
+
+  // 目盛りが細かくても数字が重ならない（8桁の数・3mm間隔）
+  const e3 = defaultDoc({ axes: [defaultAxis({ tickCount: 40, tickStep: 3, start: 60000000, valueStep: 1000000 })] });
+  render(e3, svg, { interactive: false });
+  ok(overlaps() === 0 && labelsOf().length >= 3, `細かい目盛り（おまかせ）: 重なり ${overlaps()}か所・数字 ${labelsOf().length}個`);
+
+  // 以前の版で保存した作品（9000 と打って 万 を付けた方式）が崩れない
+  const oldDoc = { schema: 1, axes: [{ tickCount: 10, tickStep: 14, start: 9000, valueStep: 100, labelEvery: 10, labelSuffix: '万', suffixSkipZero: false, ticks: {} }] };
+  render(normalizeDoc(oldDoc), svg, { interactive: false });
+  ok(labelsOf().map((t) => t.textContent).join('|') === '9000万|10000万', `古い作品の読み込み: ${labelsOf().map((t) => t.textContent).join(' / ')}`);
+
   // --- 目視用: 書き出したPNGを色付き背景の上に並べる（透過と字形の確認） ---
   const box = document.createElement('div');
   box.style.cssText = 'margin-top:14px;padding:14px;background:#ffd9e8;display:inline-block;border-radius:8px';
