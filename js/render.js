@@ -7,7 +7,9 @@
    ・背景は一切塗らない（＝透過PNGを担保する）
    ============================================================ */
 
-import { tickValue, fmtValue, tickLength, tickOf, axisLineLength } from './model.js?v=6';
+import {
+  tickValue, fmtValue, tickLength, tickOf, axisLineLength, isFractionNotation, tickFraction,
+} from './model.js?v=8';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -35,7 +37,7 @@ const r = (n) => Math.round(n * 1000) / 1000;
 /** 文字幅のおおよその見積り（分数の横線の長さを決めるのに使う） */
 function estW(s, fs) {
   let w = 0;
-  for (const ch of String(s ?? '')) w += /[\x20-\x7E]/.test(ch) ? 0.56 : 1.0;
+  for (const ch of String(s ?? '')) w += /[\x20-\x7E]/.test(ch) ? 0.62 : 1.0;
   return w * fs;
 }
 
@@ -56,10 +58,10 @@ function resolveLabel(a, i) {
     case 'fraction':
       return { mode: 'fraction', whole: ov.whole, num: ov.num, den: ov.den, ...common };
     case 'box':
-      return { mode: 'box', boxW: ov.boxW ?? a.boxW, boxH: ov.boxH ?? a.boxH, ...common };
+      return { mode: 'box', boxW: labelLayout(a).boxW.get(i) ?? ov.boxW ?? a.boxW, boxH: ov.boxH ?? a.boxH, ...common };
     default: // 'auto'
       if (autoLabelSet(a).has(i)) {
-        return { mode: 'text', text: autoText(a, i), ...common };
+        return { ...autoSpec(a, i), ...common };
       }
       // ★ここで ...common を落とすと「数字が出ない目盛りでは矢印も出ない」になる
       //   （2026-10-01: 「矢印が出てこない」の原因はこれだった）
@@ -75,16 +77,41 @@ function autoText(a, i) {
   return (a.labelPrefix || '') + body + (a.labelSuffix || '');
 }
 
+/** 自動ラベルの中身。分数の書き方なら縦分数に組む（整数になるところは整数で書く） */
+function autoSpec(a, i) {
+  if (isFractionNotation(a)) {
+    const f = tickFraction(a, i);
+    if (f && !('int' in f)) return { mode: 'fraction', whole: f.whole, num: String(f.num), den: String(f.den) };
+    if (f) return { mode: 'text', text: String(f.int) };
+  }
+  return { mode: 'text', text: autoText(a, i) };
+}
+
+/** 自動ラベルの横幅の見積り（重なりの判定に使う） */
+function autoWidth(a, i) {
+  const fs = a.fontSize;
+  const sp = autoSpec(a, i);
+  if (sp.mode === 'fraction') {
+    const ffs = fs * 0.92;
+    return Math.max(estW(sp.num, ffs), estW(sp.den, ffs)) + ffs * 0.34 + (sp.whole ? estW(sp.whole, fs) + fs * 0.12 : 0);
+  }
+  return estW(sp.text, fs);
+}
+
 /* ---------- 数字を出す目盛りを決める ---------- */
 
 let autoCache = new WeakMap();   // 1回の描画のあいだだけ使う（buildArt の先頭で作り直す）
 
-/** 手で置いたラベル（□・文字・分数）の横幅の半分。引き出してあるものは数字の段に居ないので 0 */
+/** 手で置いたラベルが「数字の段」に居るか（引き出してあるもの・反対側に出したものは居ない） */
+function inLabelRow(a, ov) {
+  if ((Number(ov.lift) || 0) >= a.fontSize * 0.9) return false;
+  if ((ov.side === 'up' || ov.side === 'down') && ov.side !== a.labelSide) return false;
+  return ov.mode === 'box' || ov.mode === 'text' || ov.mode === 'fraction';
+}
+
+/** 手で置いた文字・分数の横幅の半分 */
 function manualHalfWidth(a, ov) {
   const fs = a.fontSize;
-  if ((Number(ov.lift) || 0) >= fs * 0.9) return 0;
-  if (ov.side === 'up' || ov.side === 'down') { if (ov.side !== a.labelSide) return 0; }
-  if (ov.mode === 'box') return Number(ov.boxW ?? a.boxW) / 2;
   if (ov.mode === 'text') return estW(ov.text, fs) / 2;
   if (ov.mode === 'fraction') {
     return (Math.max(estW(ov.num, fs), estW(ov.den, fs)) + fs * 0.4 + (ov.whole ? estW(ov.whole, fs) : 0)) / 2;
@@ -93,19 +120,27 @@ function manualHalfWidth(a, ov) {
 }
 
 /**
- * 自動の数字を出す目盛りの番号の集合。
+ * その軸のラベルの割り付けを決める。
+ *   set  … 自動の数字を出す目盛りの番号
+ *   boxW … □ の実際の幅（目盛り番号 → mm）
+ *
+ * 数字を出すところ:
  *  ・'auto' … 数字どうしが重ならない、いちばん細かい間隔を選ぶ
  *  ・'ends' … 両はしだけ
  *  ・数値   … その個数ごと
- * どの場合も、手で置いた □ や文字に重なる数字は出さない（重なった数直線は使えないため）。
+ *
+ * ★重なった数直線は使えないので、次の順で必ず重なりを解く
+ *  1) □ が隣の数字や隣の□に当たるときは、□ を少し縮めて収める（既定の幅の 65% まで）
+ *  2) それでも当たる数字は出さない
  */
-function autoLabelSet(a) {
+function labelLayout(a) {
   const hit = autoCache.get(a);
   if (hit) return hit;
 
   const n = Math.max(0, Math.floor(Number(a.tickCount) || 0));
   const fs = a.fontSize;
   const step = Number(a.tickStep) || 0;
+  const margin = fs * 0.25;
   const set = new Set();
 
   if (a.labelEvery === 'ends') {
@@ -115,7 +150,7 @@ function autoLabelSet(a) {
     for (const c of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]) {
       k = c;
       let maxW = 0;
-      for (let i = 0; i <= n; i += c) maxW = Math.max(maxW, estW(autoText(a, i), fs));
+      for (let i = 0; i <= n; i += c) maxW = Math.max(maxW, autoWidth(a, i));
       if (c * step >= maxW + fs * 0.45) break;
     }
     for (let i = 0; i <= n; i += k) set.add(i);
@@ -124,23 +159,48 @@ function autoLabelSet(a) {
     if (k > 0) for (let i = 0; i <= n; i += k) set.add(i);
   }
 
-  // 手で置いたものと重なる数字を引く
+  // 手で決めた目盛り
+  const manual = [];
   for (const key of Object.keys(a.ticks || {})) {
     const j = Number(key);
     const ov = tickOf(a, j);
     if (ov.mode === 'auto') continue;
     set.delete(j);                       // その目盛り自身は手で決めたものが出る
-    const hw = manualHalfWidth(a, ov);
-    if (hw <= 0) continue;
+    if (inLabelRow(a, ov)) manual.push({ j, ov });
+  }
+
+  // 1) □ の幅を決める（幅を手で指定してあるものは触らない）
+  const boxW = new Map();
+  const full = Number(a.boxW) || 14;
+  for (const m of manual) {
+    if (m.ov.mode !== 'box') continue;
+    if (m.ov.boxW != null) { boxW.set(m.j, Number(m.ov.boxW)); continue; }
+    let limit = Infinity;
+    for (const i of set) limit = Math.min(limit, 2 * (Math.abs(i - m.j) * step - autoWidth(a, i) / 2 - margin));
+    for (const o of manual) {
+      if (o === m) continue;
+      const d = Math.abs(o.j - m.j) * step;
+      limit = Math.min(limit, (o.ov.mode === 'box' && o.ov.boxW == null)
+        ? d - margin                                   // 既定の□どうしは半分ずつ譲る
+        : 2 * (d - (o.ov.mode === 'box' ? Number(o.ov.boxW) / 2 : manualHalfWidth(a, o.ov)) - margin));
+    }
+    boxW.set(m.j, (limit < full && limit >= full * 0.65) ? limit : full);
+  }
+
+  // 2) まだ当たる数字は出さない
+  for (const m of manual) {
+    const hw = m.ov.mode === 'box' ? boxW.get(m.j) / 2 : manualHalfWidth(a, m.ov);
     for (const i of [...set]) {
-      const need = hw + estW(autoText(a, i), fs) / 2 + fs * 0.15;
-      if (Math.abs(i - j) * step < need) set.delete(i);
+      if (Math.abs(i - m.j) * step < hw + autoWidth(a, i) / 2 + margin - 0.01) set.delete(i);
     }
   }
 
-  autoCache.set(a, set);
-  return set;
+  const res = { set, boxW };
+  autoCache.set(a, res);
+  return res;
 }
+
+function autoLabelSet(a) { return labelLayout(a).set; }
 
 /** ラベル1つ分の高さ（mm）。labelBlock() と必ず一致させること */
 function blockHeight(spec, a) {

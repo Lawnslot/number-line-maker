@@ -1,185 +1,251 @@
-:root{
-  --bg:#f3f4f6; --panel:#fff; --line:#dfe3e8; --ink:#1f2430; --sub:#6b7280;
-  --accent:#2563eb; --accent-ink:#fff;
-  --radius:10px;
+/* ============================================================
+   数直線メーカー — 画面の見た目
+   ------------------------------------------------------------
+   方針（2026-10-02）: 制作ソフトらしい落ち着いた枠の中央に、白いアートボードを置く。
+   ・色は枠に使わず、青は「いちばん押してほしいボタン」だけに使う
+   ・暗い画面が既定。明るい画面にも切り替えられる（body[data-theme]）
+   ============================================================ */
+
+body[data-theme=dark]{
+  --bg:#1c1c1c; --chrome:#262626; --panel:#2c2c2c; --card:#323232; --field:#1b1b1b;
+  --line:#3b3b3b; --line2:#555; --ink:#ececec; --sub:#a2a2a2; --faint:#7a7a7a;
+  --hover:#3a3a3a; --sel:#4d4d4d; --canvas:#161616;
+  --accent:#3b8df3; --accent-h:#5aa1f6; --accent-ink:#fff; --focus:#5aa1f6;
+  --shadow:0 10px 34px rgba(0,0,0,.55);
+  color-scheme:dark;
 }
+body[data-theme=light]{
+  --bg:#f3f3f3; --chrome:#ffffff; --panel:#fafafa; --card:#ffffff; --field:#ffffff;
+  --line:#e0e0e0; --line2:#c4c4c4; --ink:#222; --sub:#6b6b6b; --faint:#9a9a9a;
+  --hover:#ededed; --sel:#dcdcdc; --canvas:#e4e4e4;
+  --accent:#1473e6; --accent-h:#0d66d0; --accent-ink:#fff; --focus:#1473e6;
+  --shadow:0 8px 26px rgba(0,0,0,.16);
+  color-scheme:light;
+}
+
 *{box-sizing:border-box}
 [hidden]{display:none !important}
+html,body{height:100%}
 body{
   margin:0; background:var(--bg); color:var(--ink);
-  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
+  font:13px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  display:grid; grid-template-rows:auto auto 1fr auto; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
 }
-
-/* ---------- 上部バー ---------- */
-#topbar{
-  display:flex; align-items:center; gap:10px; padding:8px 16px;
-  background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap;
-  position:sticky; top:0; z-index:30;
-}
-#topbar h1{font-size:15px; margin:0; letter-spacing:.02em; white-space:nowrap}
-#topbar input{width:200px}
-#topbar input.narrow{width:110px}
 .spacer{flex:1 1 auto}
-
-#presetChips{display:flex; gap:5px; flex-wrap:wrap}
-#presetChips button{
-  border-radius:99px; padding:4px 11px; font-size:12px; color:var(--sub); background:#f6f7f9;
-}
-#presetChips button:hover{color:var(--accent); border-color:var(--accent); background:#fff}
-
-/* ---------- 縦一列レイアウト ---------- */
-main{max-width:1150px; margin:0 auto; padding:14px 16px 60px; display:flex; flex-direction:column; gap:12px}
-.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius)}
-
-/* ---------- 基本バー ---------- */
-#quickbar{display:flex; flex-wrap:wrap; gap:10px 16px; padding:12px 16px; align-items:flex-end}
-.field{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub); white-space:nowrap}
-.field input,.field select{width:96px}
-.field input.w-small{width:70px}
-.flabel{font-size:11px; color:var(--sub)}
-#stepHint{flex-basis:100%; margin:0; background:#f4f6fa; border-radius:5px; padding:4px 10px; display:inline-block; width:fit-content}
+.vr{width:1px; align-self:stretch; background:var(--line); margin:4px 2px; flex:0 0 auto}
 
 /* ---------- 入力の共通 ---------- */
-input,select,button{font:inherit}
+input,select,button{font:inherit; color:inherit}
 input[type=number],input[type=text],input[type=search],select{
-  padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff;
-  color:var(--ink); font-size:13px; min-width:0;
+  height:30px; padding:0 9px; border:1px solid var(--line2); border-radius:4px;
+  background:var(--field); color:var(--ink); font-size:13px; min-width:0; width:100%;
+  transition:border-color .12s, box-shadow .12s;
 }
-input[type=color]{padding:2px; height:30px; width:60px; border:1px solid var(--line); border-radius:6px; background:#fff}
-input:focus,select:focus{outline:2px solid #bfd4fb; outline-offset:0; border-color:var(--accent)}
+select{padding-right:4px}
+input:hover,select:hover{border-color:var(--faint)}
+input:focus,select:focus{outline:none; border-color:var(--focus); box-shadow:0 0 0 1px var(--focus)}
+input::placeholder{color:var(--faint)}
+input[type=color]{padding:2px; height:30px; width:100%; border:1px solid var(--line2); border-radius:4px; background:var(--field)}
+input[type=checkbox]{accent-color:var(--accent); width:14px; height:14px; margin:0}
+
 button{
-  padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:#fff;
-  cursor:pointer; font-size:13px; white-space:nowrap;
+  height:30px; padding:0 14px; border:1px solid var(--line2); border-radius:15px;
+  background:transparent; cursor:pointer; font-size:12.5px; font-weight:600; white-space:nowrap;
+  transition:background .12s, border-color .12s, color .12s;
 }
-button:hover{background:#f6f7f9}
-button.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
-button.primary:hover{filter:brightness(1.08)}
-button.big{padding:10px 20px; font-size:14px; font-weight:600}
-button.x{border:none; background:none; font-size:16px; color:var(--sub); padding:0 4px}
-.w-tiny{width:58px}
+button:hover{background:var(--hover)}
+button:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+button:disabled{opacity:.4; cursor:default}
+button.cta{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); padding:0 18px}
+button.cta:hover{background:var(--accent-h); border-color:var(--accent-h)}
+button.secondary{border-color:var(--sub)}
+button.quiet{border-color:transparent; font-weight:500; padding:0 10px}
+button.small{height:26px; font-size:12px; padding:0 10px}
+button.wide{width:100%}
+button.iconbtn{width:28px; height:28px; padding:0; border-color:transparent; border-radius:4px; font-size:14px; font-weight:400; color:var(--sub)}
+button.iconbtn:hover{color:var(--ink)}
+button.toggle.on{background:var(--sel); color:var(--ink)}
 
 label{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub)}
-label.chk{flex-direction:row; align-items:center; gap:5px; font-size:12px; color:var(--ink); white-space:nowrap}
-label.chk.end{align-items:flex-end; padding-bottom:6px}
-label.inline{flex-direction:row; align-items:center; gap:4px; font-size:12px; color:var(--ink)}
-
-.grid1,.grid2,.grid3,.grid4{display:grid; gap:7px 8px; margin-bottom:6px}
+label.chk{flex-direction:row; align-items:center; gap:7px; font-size:12.5px; color:var(--ink); padding:3px 0; cursor:pointer}
+label.inline{flex-direction:row; align-items:center; gap:5px; font-size:12px; color:var(--sub)}
+.flabel{font-size:11px; color:var(--sub); display:block}
+.mt{margin-top:8px}
+.hint{font-size:11px; color:var(--sub); margin:4px 0}
+.hint.small{font-size:10.5px; color:var(--faint); line-height:1.45}
+.grid1,.grid2,.grid3,.grid4{display:grid; gap:8px; margin-bottom:8px}
 .grid1{grid-template-columns:1fr}
 .grid2{grid-template-columns:1fr 1fr}
 .grid3{grid-template-columns:1fr 1fr 1fr}
 .grid4{grid-template-columns:1fr 1fr 1fr 1fr}
-.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0 0}
-.hint{font-size:11px; color:var(--sub); margin:4px 0}
-.hint.small{font-size:10px; line-height:1.4}
+.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0}
 
 /* 選択式ボタン */
-.seg{display:flex}
+.seg{display:flex; background:var(--field); border:1px solid var(--line2); border-radius:4px; padding:2px; gap:2px; height:30px}
 .seg button{
-  flex:1 1 auto; border-radius:0; border-right-width:0; font-size:12px; padding:6px 10px;
-  color:var(--sub); background:#fafbfc;
+  flex:1 1 auto; height:auto; border:none; border-radius:3px; padding:0 10px;
+  font-size:12px; font-weight:500; color:var(--sub);
 }
-.seg button:first-child{border-radius:6px 0 0 6px}
-.seg button:last-child{border-radius:0 6px 6px 0; border-right-width:1px}
-.seg button.on{background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600}
+.seg button:hover{color:var(--ink); background:var(--hover)}
+.seg button.on{background:var(--sel); color:var(--ink); font-weight:700}
+.seg.sm button{padding:0 6px; font-size:11.5px}
 
-/* 軸タブ（2本のとき） */
-.tabs{display:flex; gap:4px; align-items:flex-end; padding-bottom:1px}
-.tabs button{padding:5px 11px; font-size:12px}
-.tabs button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
-.tabs button.ghost{color:var(--sub); padding:5px 8px}
+/* ---------- アプリバー ---------- */
+#appbar{
+  display:flex; align-items:center; gap:8px; height:48px; padding:0 12px 0 14px;
+  background:var(--chrome); border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:center; gap:9px; margin-right:6px}
+.logo{width:24px; height:24px; color:var(--accent)}
+.appname{font-size:13.5px; font-weight:700; letter-spacing:.03em; white-space:nowrap}
+#ver{font-size:10px; color:var(--faint); font-weight:400}
+.docfields{display:flex; gap:6px}
+.docfields input{background:transparent; border-color:transparent; font-weight:600}
+.docfields input:hover{border-color:var(--line2)}
+.docfields input:focus{background:var(--field)}
+#docName{width:290px}
+#docUnit{width:120px; font-weight:400}
 
-/* ---------- プレビュー ---------- */
-#previewCard{position:relative; overflow:visible}
+/* ---------- オプションバー ---------- */
+#optbar{
+  display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px 12px; padding:9px 14px 10px;
+  background:var(--panel); border-bottom:1px solid var(--line);
+}
+.field{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--sub); white-space:nowrap}
+.field input.w-num{width:128px}
+.field input.w-small{width:76px}
+.field select.w-sel{width:172px}
+#optbar .vr{margin:2px 0; height:44px; align-self:flex-end}
+.tabs{display:flex; gap:4px; align-items:flex-end}
+.tabs button{border-radius:4px; height:30px; font-weight:500; padding:0 11px; font-size:12px}
+.tabs button.on{background:var(--sel); border-color:var(--sel); font-weight:700}
+.tabs button.ghost{color:var(--sub); padding:0 8px}
+
+/* ---------- 作業場 ---------- */
+#work{display:flex; min-height:0}
+
+/* 左: テンプレート */
+#rail{
+  flex:0 0 172px; background:var(--panel); border-right:1px solid var(--line);
+  overflow-y:auto; padding:12px 10px 20px;
+}
+#rail h2,#morePanel h2{
+  font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--sub); margin:0 2px 10px;
+}
+#presetChips{display:flex; flex-direction:column; gap:8px}
+#presetChips button{
+  height:auto; padding:0; border-radius:6px; border:1px solid var(--line); background:var(--card);
+  display:flex; flex-direction:column; overflow:hidden; text-align:left;
+}
+#presetChips button:hover{border-color:var(--accent)}
+#presetChips .pv{background:#fff; padding:7px 8px; display:flex; align-items:center; justify-content:center; height:52px}
+#presetChips .pv svg{max-width:100%; max-height:100%; width:auto; height:auto; display:block}
+#presetChips .pl{font-size:11px; font-weight:500; padding:5px 8px 6px; white-space:normal; line-height:1.35; color:var(--ink)}
+
+/* 中央: アートボード */
+#previewCard{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; background:var(--canvas)}
+#stepHint{
+  margin:0; padding:9px 16px 0; font-size:12px; color:var(--sub); text-align:center;
+  font-variant-numeric:tabular-nums; min-height:28px;
+}
+#stepHint b{color:var(--ink); font-weight:600}
+#stepHint .warn{color:#f0a13c}
+/* アートボードは上寄せ。下を空けておき、そこに目盛りの編集窓を出す */
 #previewWrap{
-  display:flex; justify-content:center; padding:16px; overflow-x:auto;
-  background:#f7f8fa; border-radius:var(--radius) var(--radius) 0 0;
+  flex:1 1 auto; min-height:0; overflow:auto; padding:26px 24px 24px;
+  display:flex; align-items:flex-start; justify-content:center;
 }
 /* ★市松は SVG 自身に敷く。見えている市松の範囲 ＝ 書き出されるPNGの範囲 */
-#preview{
-  display:block; overflow:visible; flex:0 0 auto; background:#fff;
-  box-shadow:0 0 0 1px rgba(20,30,50,.13);
-}
+#preview{display:block; overflow:visible; flex:0 0 auto; background:#fff; box-shadow:var(--shadow)}
 #preview.checker{
   background-image:
-    linear-gradient(45deg,#e8eaee 25%,transparent 25%,transparent 75%,#e8eaee 75%),
-    linear-gradient(45deg,#e8eaee 25%,transparent 25%,transparent 75%,#e8eaee 75%);
+    linear-gradient(45deg,#e6e8ec 25%,transparent 25%,transparent 75%,#e6e8ec 75%),
+    linear-gradient(45deg,#e6e8ec 25%,transparent 25%,transparent 75%,#e6e8ec 75%);
   background-size:14px 14px; background-position:0 0,7px 7px;
 }
 .tick-hit{cursor:pointer}
-.tick-hit:hover{fill:rgba(37,99,235,.10)}
-.stagehint{margin:0; padding:7px 14px; font-size:11px; color:var(--sub); border-top:1px solid var(--line)}
+.tick-hit:hover{fill:rgba(59,141,243,.14)}
+.stagehint{margin:0; padding:0 16px 12px; font-size:11.5px; color:var(--faint); text-align:center}
+.stagehint b{color:var(--sub); font-weight:600}
 
-/* クリックした目盛りのそばに出る編集窓 */
-.pop{
-  position:absolute; z-index:40; width:280px; padding:10px 12px 12px;
-  background:#fff; border:1px solid #c9d2e0; border-radius:10px;
-  box-shadow:0 12px 34px rgba(15,25,45,.2);
+/* 右: 詳しい設定 */
+#morePanel{
+  flex:0 0 300px; background:var(--panel); border-left:1px solid var(--line);
+  overflow-y:auto; padding:12px 12px 30px;
 }
-.pophead{display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12px}
-.pop .seg{margin-bottom:8px}
-.pop .seg button{padding:6px 2px}
-.poprow{display:flex; align-items:center; gap:8px; margin:6px 0}
+.card{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:11px 12px 10px; margin-bottom:10px}
+.card h3{margin:0 0 9px; font-size:12px; font-weight:700}
+.chips{display:flex; gap:4px; flex-wrap:wrap}
+.chips span{background:var(--sel); border-radius:99px; padding:2px 9px; font-size:11px}
+.chips .none{background:transparent; color:var(--faint); padding-left:0}
+.pagewrap{background:var(--canvas); border:1px solid var(--line); border-radius:4px; padding:8px; text-align:center}
+#pagePreview{width:100%; max-height:210px; height:auto}
+
+/* ---------- ステータスバー ---------- */
+#statusbar{
+  display:flex; align-items:center; gap:8px; height:32px; padding:0 10px 0 14px;
+  background:var(--chrome); border-top:1px solid var(--line); font-size:11.5px; color:var(--sub);
+}
+#statusbar .chk{font-size:11.5px; color:var(--sub); padding:0}
+#statusbar .vr{margin:8px 2px}
+#sizeInfo{font-variant-numeric:tabular-nums}
+#zoomInfo{min-width:40px; text-align:center; font-variant-numeric:tabular-nums}
+
+/* ---------- 目盛りの編集窓 ---------- */
+.pop{
+  position:fixed; z-index:40; width:292px; padding:10px 12px 8px;
+  background:var(--card); border:1px solid var(--line2); border-radius:8px; box-shadow:var(--shadow);
+}
+.pophead{display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12.5px}
+.pop .seg{margin-bottom:9px}
+.pop #modeSeg button{padding:0 2px; font-size:12.5px}
+.poprow{display:flex; align-items:center; gap:10px; margin:4px 0 8px}
 .poprow .seg{flex:1 1 auto; margin:0}
-.seg.sm button{font-size:11.5px; padding:5px 2px}
-button.wide{width:100%; font-size:12px}
+.w-tiny{width:56px !important}
 .when-text,.when-fraction,.when-box{display:none}
 #tickPop[data-mode=text] .when-text{display:grid}
 #tickPop[data-mode=fraction] .when-fraction{display:grid}
 #tickPop[data-mode=box] .when-box{display:grid}
-
-/* ---------- 書き出しバー ---------- */
-#actionbar{display:flex; align-items:center; gap:10px; padding:10px 16px; flex-wrap:wrap}
-#sizeInfo{font-variant-numeric:tabular-nums}
-#zoomInfo{font-size:12px; color:var(--sub); min-width:44px; text-align:center}
-
-/* ---------- 詳しい設定 ---------- */
-#morePanel{display:grid; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); gap:12px}
-.card.mini{padding:12px 14px}
-.card.mini h3{margin:0 0 9px; font-size:12px; letter-spacing:.03em}
-
-.chips{display:flex; gap:4px; flex-wrap:wrap}
-.chips span{background:#eef2ff; color:#3730a3; border-radius:99px; padding:2px 8px; font-size:11px}
-.chips .none{background:#f1f3f6; color:var(--sub)}
-
-.pagewrap{background:#eceef2; border:1px solid var(--line); border-radius:6px; padding:8px; text-align:center}
-#pagePreview{width:100%; max-height:230px; height:auto}
+.popmore{margin-top:8px; border-top:1px solid var(--line); padding-top:6px}
+.popmore summary{cursor:pointer; font-size:11.5px; color:var(--sub); padding:2px 0 6px; list-style:none}
+.popmore summary::before{content:'▸ '}
+.popmore[open] summary::before{content:'▾ '}
+.popmore summary::-webkit-details-marker{display:none}
+.popfoot{display:flex; justify-content:flex-end; margin-top:4px}
 
 /* ---------- ライブラリ ---------- */
-#libDlg{border:none; border-radius:12px; padding:0; width:min(960px,92vw); max-height:86vh; box-shadow:0 20px 60px rgba(0,0,0,.25)}
-#libDlg::backdrop{background:rgba(15,20,30,.45)}
+#libDlg{
+  border:1px solid var(--line2); border-radius:10px; padding:0; width:min(980px,92vw); max-height:86vh;
+  background:var(--panel); color:var(--ink); box-shadow:var(--shadow);
+}
+#libDlg::backdrop{background:rgba(0,0,0,.55)}
 .dlghead{display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap}
-.dlghead h2{font-size:15px; margin:0}
-.dlghead input{width:220px}
+.dlghead h2{font-size:14px; margin:0 6px 0 0}
+.dlghead input{width:230px}
 .libgrid{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;
   padding:16px; overflow-y:auto; max-height:62vh;
 }
-.libcard{border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; display:flex; flex-direction:column}
-.libcard .thumb{background:#fff; border-bottom:1px solid var(--line); height:92px; display:flex; align-items:center; justify-content:center; overflow:hidden}
+.libcard{border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--card); display:flex; flex-direction:column}
+.libcard:hover{border-color:var(--line2)}
+.libcard .thumb{background:#fff; height:96px; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer}
 .libcard .thumb img{max-width:100%; max-height:100%}
-.libcard .meta{padding:7px 9px; font-size:12px; flex:1 1 auto}
+.libcard .meta{padding:8px 10px 4px; font-size:12px; flex:1 1 auto}
 .libcard .meta b{display:block; font-size:12.5px; margin-bottom:2px; word-break:break-all}
 .libcard .meta small{color:var(--sub); font-size:10.5px}
-.libcard .acts{display:flex; gap:4px; padding:7px 9px; border-top:1px solid var(--line)}
-.libcard .acts button{flex:1 1 auto; padding:4px 6px; font-size:11.5px}
+.libcard .acts{display:flex; gap:4px; padding:6px 8px 8px}
+.libcard .acts button{flex:1 1 auto; height:26px; padding:0 6px; font-size:11.5px; border-radius:13px}
+.libcard .acts button[data-act=open]{background:var(--accent); border-color:var(--accent); color:#fff}
 #libInfo{padding:0 16px 14px}
 
 /* ---------- トースト ---------- */
 #toast{
-  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(14px);
-  background:#1f2430; color:#fff; padding:9px 18px; border-radius:99px; font-size:13px;
-  opacity:0; pointer-events:none; transition:.22s; z-index:99;
+  position:fixed; left:50%; bottom:48px; transform:translateX(-50%) translateY(14px);
+  background:#0d66d0; color:#fff; padding:9px 20px; border-radius:6px; font-size:12.5px; font-weight:600;
+  opacity:0; pointer-events:none; transition:.22s; z-index:99; box-shadow:var(--shadow);
 }
 #toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
 
-
-/* ---------- 2026-10-02: 入力欄の幅・版表示 ---------- */
-.field input.w-num{width:132px}      /* 100000000 が切れない幅 */
-.field input.w-small{width:78px}
-.field select.w-sel{width:178px}
-.chkfield .chk{display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--ink); height:32px}
-#ver{font-size:10px; font-weight:400; color:var(--sub); margin-left:2px}
-#previewWrap{min-height:120px; align-items:center}
-.stagehint b{color:var(--ink)}
-.field input[type=checkbox]{width:auto}
-#topbar input#docName{width:300px}
+/* 幅の狭い画面ではテンプレートをたたむ */
+@media (max-width: 1000px){ #rail{display:none} #docUnit{display:none} #docName{width:200px} }

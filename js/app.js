@@ -9,12 +9,13 @@
    ============================================================ */
 
 import {
-  PAPERS, PRESETS, defaultDoc, defaultAxis, fmtValue, normalizeDoc,
+  PAPERS, PRESETS, defaultDoc, defaultAxis, normalizeDoc,
+  tickText, stepText, isFractionNotation, fractionBase,
   tickOf, setTick, applySync, cloneDoc,
-} from './model.js?v=6';
-import { render, renderPage } from './render.js?v=6';
-import { toPNGBlob, toSVGString, toThumbnail, download, safeName, mmToPx } from './export.js?v=6';
-import { storage } from './storage.js?v=6';
+} from './model.js?v=8';
+import { render, renderPage } from './render.js?v=8';
+import { toPNGBlob, toSVGString, toThumbnail, download, safeName, mmToPx } from './export.js?v=8';
+import { storage } from './storage.js?v=8';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -76,8 +77,11 @@ function refresh({ skipPanel = false } = {}) {
   const vb = render(doc, preview, { interactive: true, selected: sel });
   preview.classList.toggle('checker', $('#chkChecker').checked);
   const PX_PER_MM = 96 / 25.4;
-  const avail = $('#previewWrap').clientWidth - 36;
-  const fit = Math.max(0.5, Math.min(2.2, avail / (vb.w * PX_PER_MM)));
+  const wrap = $('#previewWrap');
+  // 高さは作業場の半分まで。下に編集窓が出る場所を残す
+  const fit = Math.max(0.4, Math.min(2.4,
+    (wrap.clientWidth - 64) / (vb.w * PX_PER_MM),
+    (wrap.clientHeight * 0.5) / (vb.h * PX_PER_MM)));
   zoomNow = zoom ?? fit;
   preview.style.width = `${(vb.w * zoomNow).toFixed(2)}mm`;
   preview.style.height = 'auto';
@@ -112,9 +116,20 @@ function refresh({ skipPanel = false } = {}) {
 
 function showStepHint(a) {
   const mm = Math.round(a.tickStep * a.tickCount * 10) / 10;
-  $('#stepHint').textContent =
-    `1目盛り = ${fmtValue(a, a.valueStep)}${a.labelSuffix || ''}　／　` +
-    `${fmtValue(a, a.start)} から ${fmtValue(a, a.start + a.valueStep * a.tickCount)} まで　／　線の長さ ${mm}mm`;
+  const el = $('#stepHint');
+  el.textContent = '';
+  const add = (t, tag) => { const n = document.createElement(tag || 'span'); n.textContent = t; el.appendChild(n); return n; };
+  add('1目盛り = ');
+  add(stepText(a) + (a.labelSuffix || ''), 'b');
+  add(`　／　${tickText(a, 0)} から ${tickText(a, a.tickCount)} まで　／　線の長さ ${mm}mm`);
+
+  // つまずきやすいところは、その場で次の一手を教える
+  const stepStr = String(Math.round(a.valueStep * 1e8) / 1e8);
+  if (isFractionNotation(a) && !fractionBase(a)) {
+    add('　分数で書くには「はじめの数」「おわりの数」を整数にしてください').className = 'warn';
+  } else if (!isFractionNotation(a) && stepStr.replace(/^-?\d+\.?/, '').length > 4) {
+    add('　1目盛りが割り切れません →「数の書き方」を分数にすると 1/3 のように書けます').className = 'warn';
+  }
 }
 
 function syncPanel() {
@@ -198,7 +213,7 @@ function syncPanel() {
     const ov = tickOf(av, sel.i);
     const who = n > 1 ? `${n === 2 ? (sel.ai === 0 ? '上の線' : '下の線') : `${sel.ai + 1}本目`}・` : '';
     $('#tickWho').textContent =
-      `${who}${fmtValue(av, av.start + av.valueStep * sel.i)}${av.labelSuffix || ''} の目盛り`;
+      `${who}${tickText(av, sel.i)}${av.labelSuffix || ''} の目盛り`;
     pop.dataset.mode = ov.mode;
     $$('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.m === ov.mode));
     $$('[data-seg-tick]').forEach((seg) => {
@@ -216,12 +231,23 @@ function placePop() {
   const hit = preview.querySelector(`.tick-hit[data-ai="${sel.ai}"][data-i="${sel.i}"]`);
   if (!hit) { pop.hidden = true; return; }
   pop.hidden = false;
-  const card = $('#previewCard').getBoundingClientRect();
   const hr = hit.getBoundingClientRect();
-  let x = hr.left + hr.width / 2 - card.left - pop.offsetWidth / 2;
-  x = Math.max(8, Math.min(x, card.width - pop.offsetWidth - 8));
+  const ar = preview.getBoundingClientRect();        // アートボード（数直線の全体）
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+
+  // ★編集窓は「数直線の外」に出す。数直線に被ると、次に押したい目盛りが押せなくなる
+  //   （2026-10-02: 本物の入力で確かめたら、窓が隣の目盛りを隠して□が作れなかった）
+  let x = Math.max(8, Math.min(hr.left + hr.width / 2 - pw / 2, vw - pw - 8));
+  let y = ar.bottom + 10;                             // まず、数直線のすぐ下
+  if (y + ph > vh - 8) {
+    const yy = Math.max(8, Math.min(hr.top, vh - ph - 8));
+    if (ar.right + 14 + pw <= vw - 8) { x = ar.right + 14; y = yy; }        // 下に入らなければ右
+    else if (ar.left - 14 - pw >= 8) { x = ar.left - 14 - pw; y = yy; }     // 右もだめなら左
+    else y = vh - ph - 8;                                                    // どこにも無ければ下端
+  }
   pop.style.left = `${x}px`;
-  pop.style.top = `${hr.bottom - card.top + 8}px`;
+  pop.style.top = `${y}px`;
 }
 
 /* ---------- 入力のバインド ---------- */
@@ -255,7 +281,7 @@ document.addEventListener('input', (ev) => {
     }
     refresh({ skipPanel: true });
     showStepHint(axis());
-    if (k === 'labelSuffix' || k === 'unit' || k === 'kanji') syncPanel();
+    if (k === 'labelSuffix' || k === 'unit' || k === 'notation' || k === 'fracReduce') syncPanel();
     return;
   }
 
@@ -413,13 +439,14 @@ $('#btnZoomIn').onclick = () => { zoom = Math.min(6, zoomNow * 1.25); refresh({ 
 $('#btnZoomOut').onclick = () => { zoom = Math.max(0.2, zoomNow / 1.25); refresh({ skipPanel: true }); };
 $('#btnZoomFit').onclick = () => { zoom = null; refresh({ skipPanel: true }); };
 window.addEventListener('resize', () => refresh({ skipPanel: true }));
+$('#previewWrap').addEventListener('scroll', () => placePop());
 
 /* 詳しい設定 */
 $('#btnMore').onclick = () => {
   const p = $('#morePanel');
   p.hidden = !p.hidden;
-  $('#btnMore').textContent = p.hidden ? '詳しい設定 ▾' : '詳しい設定 ▴';
-  refresh();   // 用紙プレビューを描くため
+  $('#btnMore').classList.toggle('on', !p.hidden);
+  refresh();   // 用紙プレビューを描くため／アートボードの倍率を取り直すため
 };
 
 /* ---------- 書き出し ---------- */
@@ -476,15 +503,46 @@ $('#btnNew').onclick = () => {
 const chipsNav = $('#presetChips');
 for (const p of Object.values(PRESETS)) {
   const b = document.createElement('button');
-  b.textContent = p.label;
+  b.title = `「${p.label}」から始める`;
+  const pv = document.createElement('span');
+  pv.className = 'pv';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  pv.appendChild(svg);
+  const pl = document.createElement('span');
+  pl.className = 'pl';
+  pl.textContent = p.label;
+  b.append(pv, pl);
+  chipsNav.appendChild(b);
+  // 見本を実際に描く（画面に出てからでないと寸法が測れない）
+  try {
+    render(p.make(), svg, { interactive: false });
+    svg.removeAttribute('width'); svg.removeAttribute('height');
+  } catch { /* 見本が描けなくても、名前だけで選べる */ }
   b.onclick = () => {
     doc = p.make();
     curId = null; axIdx = 0; sel = null;
+    $('#docName').value = ''; $('#docUnit').value = '';
     refresh();
-    toast(`「${p.label}」を読み込みました`);
+    toast(`「${p.label}」を開きました。数字を変えて使えます`);
   };
-  chipsNav.appendChild(b);
 }
+
+/* ---------- 明るい画面／暗い画面 ---------- */
+{
+  const saved = localStorage.getItem('nlm.theme');
+  if (saved === 'light' || saved === 'dark') document.body.dataset.theme = saved;
+  $('#btnTheme').onclick = () => {
+    const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.body.dataset.theme = next;
+    localStorage.setItem('nlm.theme', next);
+  };
+}
+
+/* ライブラリのサムネイルを押しても開ける */
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('.libcard .thumb');
+  if (t) t.parentElement.querySelector('[data-act=open]').click();
+});
 
 /* ---------- 用紙 ---------- */
 

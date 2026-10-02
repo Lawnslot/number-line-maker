@@ -108,7 +108,11 @@ export async function launch({ width = 1400, height = 900, downloadDir = null } 
       if (!p) throw new Error(`見つからない: ${sel}`);
       if (!p.visible) throw new Error(`画面に出ていない: ${sel}`);
       const blocked = !p.hitSelf;
-      if (blocked && !quiet) console.log(`   ⚠ ${sel} の上に別の要素が被っている → ${p.topDesc}`);
+      if (blocked && !quiet) {
+        // 人には押せない場所。テストとしては失敗にする（見逃すと「作れない」不具合になる）
+        console.log(`   ⚠ ${sel} の上に別の要素が被っている → ${p.topDesc}`);
+        errors.push(`押せない: ${sel} の上に ${p.topDesc} が被っている`);
+      }
       await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y });
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button: 'left', clickCount: 1 });
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button: 'left', clickCount: 1 });

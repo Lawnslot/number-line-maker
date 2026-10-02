@@ -36,7 +36,9 @@ export function defaultAxis(over = {}) {
     valueStep: 1,       // 1目盛りあたりの値
     labelEvery: 'auto', // 数字を出す目盛り。'auto'=重ならない間隔を自動で選ぶ／'ends'=両はしだけ
                         //   ／数値=その個数ごと／0=出さない
-    kanji: true,        // ★1万以上を「50万」「1億」と書く（1000000 と打てば 100万 と出る）
+    notation: 'kanji',  // ★数の書き方。'kanji'=ふつう（1万以上は 50万・1億 と書く）／'plain'=数字のまま
+                        //   ／'mixed'=分数（帯分数）／'improper'=分数（仮分数）
+    fracReduce: false,  // 分数を約分するか（数直線では同じ分母で並べることが多いので既定はしない）
     labelPrefix: '',    // 数字の前に付ける文字
     labelSuffix: '',    // ★数字の後ろに付ける文字（「万」「億」「cm」など）
     suffixSkipZero: true, // 0 には付けない（「0万」ではなく「0」にする）
@@ -150,9 +152,77 @@ export function fmtKanji(v) {
     (cho ? cho + '兆' : '') + (oku ? oku + '億' : '') + (man ? man + '万' : '') + (rest ? rest : '');
 }
 
-/** 軸の設定に合わせて数を文字にする */
+/** 数の書き方。古い作品（kanji: true/false しか持たない）も読めるようにする */
+export function notationOf(axis) {
+  return axis.notation || (axis.kanji === false ? 'plain' : 'kanji');
+}
+
+/** 軸の設定に合わせて数を文字にする（分数の書き方のときに分数にできない値もここへ来る） */
 export function fmtValue(axis, v) {
-  return axis.kanji !== false ? fmtKanji(v) : fmtNum(v);
+  return notationOf(axis) === 'plain' ? fmtNum(v) : fmtKanji(v);
+}
+
+function gcd(a, b) {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) [a, b] = [b, a % b];
+  return a || 1;
+}
+
+/** 分数の書き方が選ばれているか */
+export function isFractionNotation(axis) {
+  const n = notationOf(axis);
+  return n === 'mixed' || n === 'improper';
+}
+
+/**
+ * 分数で書くときの土台。はじめ・おわりが整数のときだけ分数にできる。
+ * 例: 0〜2 を 10目盛り → 分母 5（1目盛り = 1/5）
+ * @returns {{den:number, stepNum:number, startNum:number}|null}
+ */
+export function fractionBase(axis) {
+  const n = Math.floor(Number(axis.tickCount) || 0);
+  const s = Math.round(axis.start * 1e6) / 1e6;
+  const e = Math.round((axis.start + axis.valueStep * n) * 1e6) / 1e6;
+  if (n <= 0 || !Number.isInteger(s) || !Number.isInteger(e) || e === s) return null;
+  const g = gcd(e - s, n);
+  const den = n / g;
+  return { den, stepNum: (e - s) / g, startNum: s * den };
+}
+
+/**
+ * 目盛り i を分数にしたもの。整数になるところは { int }。
+ * @returns {{int:number}|{whole:string,num:number,den:number}|null}
+ */
+export function tickFraction(axis, i) {
+  const b = fractionBase(axis);
+  if (!b) return null;
+  let num = b.startNum + i * b.stepNum, den = b.den;
+  if (num % den === 0) return { int: num / den };
+  if (axis.fracReduce) { const k = gcd(num, den); num /= k; den /= k; }
+  const sign = num < 0 ? '-' : '';
+  const abs = Math.abs(num);
+  if (notationOf(axis) === 'mixed' && abs > den) {
+    return { whole: sign + Math.floor(abs / den), num: abs % den, den };
+  }
+  return { whole: sign, num: abs, den };
+}
+
+/** 目盛り i の値を、画面の説明文に使う1行の文字にする（例: 1と2/5） */
+export function tickText(axis, i) {
+  if (isFractionNotation(axis)) {
+    const f = tickFraction(axis, i);
+    if (f) return 'int' in f ? String(f.int) : `${f.whole ? f.whole + 'と' : ''}${f.num}/${f.den}`;
+  }
+  return fmtValue(axis, tickValue(axis, i));
+}
+
+/** 1目盛りの大きさを文字にする（例: 10万 / 0.1 / 1/5） */
+export function stepText(axis) {
+  if (isFractionNotation(axis)) {
+    const b = fractionBase(axis);
+    if (b) return b.den === 1 ? String(b.stepNum) : `${b.stepNum}/${b.den}`;
+  }
+  return fmtValue(axis, axis.valueStep);
 }
 
 /**
@@ -165,7 +235,9 @@ export function normalizeDoc(raw) {
   const doc = { ...defaultDoc(), ...raw, schema: 2 };
   doc.axes = (raw.axes && raw.axes.length ? raw.axes : [defaultAxis()]).map((a) => {
     const ax = { ...defaultAxis(), ...a, ticks: { ...(a.ticks || {}) } };
-    if (old && a.kanji === undefined) ax.kanji = false;
+    // 数の書き方: 古い作品は kanji（true/false）から決める。schema 1 は「数字のまま」
+    if (a.notation === undefined) ax.notation = (old || a.kanji === false) ? 'plain' : 'kanji';
+    delete ax.kanji;
     if (old && a.labelEvery === undefined) ax.labelEvery = 1;
     return ax;
   });
@@ -276,7 +348,7 @@ export const PRESETS = {
     make: () => {
       const d = defaultDoc({
         axes: [defaultAxis({
-          tickCount: 75, tickStep: 2, start: 0, valueStep: 1000, kanji: false,
+          tickCount: 75, tickStep: 2, start: 0, valueStep: 1000, notation: 'plain',
           labelEvery: 10, midEvery: 5, majorEvery: 10,
           lenMinor: 1.6, lenMid: 2.2, lenMajor: 3.2,
           fontSize: 3.6, leadOut: 0,
@@ -294,6 +366,13 @@ export const PRESETS = {
   decimal: {
     label: '0〜1（小数）',
     make: () => defaultDoc({ axes: [defaultAxis({ tickCount: 10, valueStep: 0.1, labelEvery: 1 })] }),
+  },
+
+  fraction: {
+    label: '分数（0〜2・1/5ずつ）',
+    make: () => defaultDoc({
+      axes: [defaultAxis({ tickCount: 10, start: 0, valueStep: 0.2, notation: 'mixed', labelEvery: 1 })],
+    }),
   },
 
   ratio2: {

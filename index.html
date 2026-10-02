@@ -4,146 +4,121 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>数直線メーカー</title>
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
-<body>
+<body data-theme="dark">
 
-<header id="topbar">
-  <h1>数直線メーカー <small id="ver" title="画面が古いときは ⌘+Shift+R">v6</small></h1>
-  <nav id="presetChips" aria-label="型から始める"></nav>
+<!-- ============ アプリバー ============ -->
+<header id="appbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 28 28" aria-hidden="true">
+      <rect width="28" height="28" rx="6" fill="currentColor"/>
+      <path d="M5 18h18M7 18v-5M11 18v-3M14 18v-6M17 18v-3M21 18v-5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+    </svg>
+    <span class="appname">数直線メーカー</span>
+    <small id="ver" title="画面が古いときは ⌘+Shift+R">v8</small>
+  </div>
+
+  <div class="docfields">
+    <input id="docName" type="text" placeholder="名前のない数直線" autocomplete="off" title="作品名">
+    <input id="docUnit" type="text" placeholder="単元名" autocomplete="off" title="単元名（ライブラリでしぼりこめます）">
+  </div>
+
   <div class="spacer"></div>
-  <input id="docName" type="text" placeholder="作品名（例: 大きい数⑥-1）" autocomplete="off">
-  <input id="docUnit" type="text" placeholder="単元名" autocomplete="off" class="narrow">
-  <button id="btnSave" class="primary">保存</button>
-  <button id="btnDup">複製</button>
-  <button id="btnNew">新規</button>
-  <button id="btnLib">ライブラリ</button>
+
+  <button id="btnNew" class="quiet">新規</button>
+  <button id="btnLib" class="quiet">ライブラリ</button>
+  <button id="btnDup" class="quiet" title="いまの数直線をコピーして、別の作品として保存します">複製</button>
+  <button id="btnSave" class="secondary">保存</button>
+  <span class="vr"></span>
+  <button id="btnSVG" class="quiet" title="拡大しても荒れない形式">SVG</button>
+  <button id="btnPNG" class="cta">透過PNGで書き出す</button>
+  <span class="vr"></span>
+  <button id="btnMore" class="quiet toggle" title="目盛りの長さ・線の太さ・単位・余白 など">詳しい設定</button>
+  <button id="btnTheme" class="iconbtn" title="明るい画面／暗い画面">◐</button>
 </header>
 
-<main>
-
-  <!-- ============ 基本の数値（これだけで1本できる） ============ -->
-  <section class="card" id="quickbar">
-    <div class="field">
-      <span class="flabel">形</span>
-      <div class="seg" id="shapeSeg">
-        <button type="button" data-n="1">1本</button>
-        <button type="button" data-n="2">2本</button>
-      </div>
+<!-- ============ オプションバー（これだけで1本できる） ============ -->
+<section id="optbar">
+  <div class="field">
+    <span class="flabel">形</span>
+    <div class="seg" id="shapeSeg">
+      <button type="button" data-n="1">1本</button>
+      <button type="button" data-n="2">2本</button>
     </div>
-    <div class="tabs" id="axisTabs" hidden></div>
+  </div>
+  <div class="tabs" id="axisTabs" hidden></div>
 
-    <label class="field">はじめの数<input type="number" data-ax="start" step="any" class="w-num"></label>
-    <label class="field">おわりの数<input type="number" id="endValue" step="any" class="w-num"></label>
-    <label class="field">目盛りの数<input type="number" data-ax="tickCount" min="1" max="500" step="1" class="w-small"></label>
-    <label class="field">1目盛りの幅(mm)<input type="number" data-ax="tickStep" min="0.3" step="0.5" class="w-small"></label>
-    <label class="field">数字を出すところ
-      <select id="labelEverySel" class="w-sel">
-        <option value="auto">おまかせ（重ならない）</option>
-        <option value="ends">両はしだけ</option>
-        <option value="1">すべての目盛り</option>
-        <option value="2">2目盛りごと</option>
-        <option value="5">5目盛りごと</option>
-        <option value="10">10目盛りごと</option>
-        <option value="0">出さない</option>
-      </select></label>
-    <label class="field chkfield"><span class="flabel">大きい数</span>
-      <span class="chk"><input type="checkbox" data-ax="kanji"> 万・億で書く</span></label>
-    <div class="field">
-      <span class="flabel">目盛りの向き</span>
-      <div class="seg" data-seg-ax="tickSide">
-        <button type="button" data-v="up">↑上</button>
-        <button type="button" data-v="down">↓下</button>
-        <button type="button" data-v="both">↕上下</button>
-      </div>
+  <span class="vr"></span>
+
+  <label class="field">はじめの数<input type="number" data-ax="start" step="any" class="w-num"></label>
+  <label class="field">おわりの数<input type="number" id="endValue" step="any" class="w-num"></label>
+  <label class="field">目盛りの数<input type="number" data-ax="tickCount" min="1" max="500" step="1" class="w-small"></label>
+  <label class="field">1目盛りの幅 mm<input type="number" data-ax="tickStep" min="0.3" step="0.5" class="w-small"></label>
+
+  <span class="vr"></span>
+
+  <label class="field">数の書き方
+    <select data-ax="notation" class="w-sel">
+      <option value="kanji">ふつう（100万・1億）</option>
+      <option value="plain">数字のまま（1000000）</option>
+      <option value="mixed">分数（帯分数 1と1/5）</option>
+      <option value="improper">分数（仮分数 6/5）</option>
+    </select></label>
+  <label class="field">数字を出すところ
+    <select id="labelEverySel" class="w-sel">
+      <option value="auto">おまかせ（重ならない）</option>
+      <option value="ends">両はしだけ</option>
+      <option value="1">すべての目盛り</option>
+      <option value="2">2目盛りごと</option>
+      <option value="5">5目盛りごと</option>
+      <option value="10">10目盛りごと</option>
+      <option value="0">出さない</option>
+    </select></label>
+  <div class="field">
+    <span class="flabel">目盛りの向き</span>
+    <div class="seg" data-seg-ax="tickSide">
+      <button type="button" data-v="up">↑ 上</button>
+      <button type="button" data-v="down">↓ 下</button>
+      <button type="button" data-v="both">↕ 上下</button>
     </div>
-    <p class="hint" id="stepHint">—</p>
-  </section>
+  </div>
 
-  <!-- ============ プレビュー（目盛りをクリックするとその場で編集） ============ -->
-  <section class="card" id="previewCard">
-    <div id="previewWrap" class="checker">
+</section>
+
+<!-- ============ 作業場 ============ -->
+<div id="work">
+
+  <!-- 左: テンプレート（選ぶだけ） -->
+  <aside id="rail">
+    <h2>テンプレート</h2>
+    <div id="presetChips"></div>
+  </aside>
+
+  <!-- 中央: アートボード -->
+  <section id="previewCard">
+    <p id="stepHint">—</p>
+    <div id="previewWrap">
       <svg id="preview" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
-    <p class="stagehint">👆 <b>□にしたい目盛りをクリック</b>すると、その場で □・文字・矢印 に変えられます</p>
-
-    <!-- クリックした目盛りのそばに出る編集窓 -->
-    <div id="tickPop" class="pop" hidden data-mode="">
-      <div class="pophead"><b id="tickWho">—</b><span class="spacer"></span><button id="popClose" class="x" title="閉じる">×</button></div>
-      <div class="seg" id="modeSeg">
-        <button type="button" data-m="auto">数字</button>
-        <button type="button" data-m="box">□</button>
-        <button type="button" data-m="text">文字</button>
-        <button type="button" data-m="fraction">分数</button>
-        <button type="button" data-m="none">なし</button>
-      </div>
-
-      <div class="grid1 when-text">
-        <label>文字<input type="text" data-tick="text" placeholder="1億 / x / ア" autocomplete="off"></label>
-      </div>
-      <div class="grid3 when-fraction">
-        <label>整数部<input type="text" data-tick="whole" placeholder="帯分数" autocomplete="off"></label>
-        <label>分子<input type="text" data-tick="num" placeholder="5" autocomplete="off"></label>
-        <label>分母<input type="text" data-tick="den" placeholder="18" autocomplete="off"></label>
-      </div>
-      <div class="grid2 when-box">
-        <label>□の幅 (mm)<input type="number" data-tick="boxW" min="1" step="0.5" placeholder="既定"></label>
-        <label>□の高さ (mm)<input type="number" data-tick="boxH" min="1" step="0.5" placeholder="既定"></label>
-      </div>
-      <div class="grid1">
-        <label>ふりがな<input type="text" data-tick="ruby" placeholder="エックス" autocomplete="off"></label>
-      </div>
-
-      <div class="poprow">
-        <span class="flabel">出す位置</span>
-        <div class="seg sm" data-seg-tick="side">
-          <button type="button" data-v="auto">自動</button>
-          <button type="button" data-v="up">線の上</button>
-          <button type="button" data-v="down">線の下</button>
-        </div>
-      </div>
-
-      <div class="row">
-        <label class="chk"><input type="checkbox" data-tick="pointer"> 矢印でさす</label>
-        <label class="inline">長さ<input type="number" data-tick="lift" min="0" step="1" class="w-tiny">mm</label>
-      </div>
-
-      <div class="row"><button id="btnMark" class="wide">↑ 記号で問う（反対側に ア・イ・ウ ＋矢印）</button></div>
-      <div class="row">
-        <label class="chk"><input type="checkbox" data-tick="tickShow"> 目盛りの線</label>
-        <label class="chk" id="connWrap" hidden><input type="checkbox" id="tickConnector"> 縦の破線</label>
-        <span class="spacer"></span>
-        <button id="btnTickReset">元に戻す</button>
-      </div>
-    </div>
+    <p class="stagehint"><b>目盛りをクリック</b>すると、その場で □・文字・分数・矢印 に変えられます</p>
   </section>
 
-  <!-- ============ 書き出し ============ -->
-  <section class="card" id="actionbar">
-    <button id="btnPNG" class="primary big">透過PNGで書き出す</button>
-    <button id="btnSVG">SVG</button>
-    <span class="hint" id="sizeInfo">—</span>
-    <div class="spacer"></div>
-    <label class="chk"><input type="checkbox" id="chkChecker" checked> 透過の市松</label>
-    <button id="btnZoomOut" title="小さく表示">−</button><span id="zoomInfo">100%</span><button id="btnZoomIn" title="大きく表示">＋</button>
-    <button id="btnZoomFit" title="画面の幅に合わせる">幅に合わせる</button>
-    <button id="btnMore">詳しい設定 ▾</button>
-  </section>
+  <!-- 右: 詳しい設定（開いたときだけ） -->
+  <aside id="morePanel" hidden>
+    <h2>詳しい設定</h2>
 
-  <!-- ============ 詳しい設定（普段はたたむ） ============ -->
-  <section id="morePanel" hidden>
-
-    <div class="card mini">
+    <div class="card">
       <h3>目盛りの長さ</h3>
       <div class="grid3">
-        <label>ふつう (mm)<input type="number" data-ax="lenMinor" min="0" step="0.2"></label>
-        <label>中 (mm)<input type="number" data-ax="lenMid" min="0" step="0.2"></label>
-        <label>長い (mm)<input type="number" data-ax="lenMajor" min="0" step="0.2"></label>
+        <label>ふつう mm<input type="number" data-ax="lenMinor" min="0" step="0.2"></label>
+        <label>中 mm<input type="number" data-ax="lenMid" min="0" step="0.2"></label>
+        <label>長い mm<input type="number" data-ax="lenMajor" min="0" step="0.2"></label>
       </div>
       <div class="row">
         <span class="hint">3つまとめて</span>
-        <button id="btnLenDown">− 短く</button>
-        <button id="btnLenUp">＋ 長く</button>
+        <button id="btnLenDown" class="small">− 短く</button>
+        <button id="btnLenUp" class="small">＋ 長く</button>
       </div>
       <div class="grid2">
         <label>中にするのは何個ごと<input type="number" data-ax="midEvery" min="0" step="1"></label>
@@ -152,72 +127,73 @@
       <p class="hint small">0 でその段階を使いません（中=0・長い=5 →「5個ごとだけ長い」）</p>
     </div>
 
-    <div class="card mini">
+    <div class="card">
       <h3>数字</h3>
       <div class="grid2">
-        <label>文字の大きさ (mm)<input type="number" data-ax="fontSize" min="1" step="0.25"></label>
-        <label>線からの間隔 (mm)<input type="number" data-ax="labelGap" min="0" step="0.2"></label>
+        <label>文字の大きさ mm<input type="number" data-ax="fontSize" min="1" step="0.25"></label>
+        <label>線からの間隔 mm<input type="number" data-ax="labelGap" min="0" step="0.2"></label>
         <label>数字のまえ<input type="text" data-ax="labelPrefix" placeholder="約" autocomplete="off"></label>
         <label>数字のうしろ<input type="text" data-ax="labelSuffix" placeholder="cm" autocomplete="off"></label>
-        <label class="chk end"><input type="checkbox" data-ax="suffixSkipZero"> 0にはうしろの文字を付けない</label>
       </div>
-      <span class="flabel">数字の位置</span>
+      <label class="chk"><input type="checkbox" data-ax="suffixSkipZero"> 0 には前後の文字を付けない</label>
+      <label class="chk"><input type="checkbox" data-ax="fracReduce"> 分数を約分する</label>
+      <span class="flabel mt">数字の位置</span>
       <div class="seg" data-seg-ax="labelSide">
         <button type="button" data-v="up">線の上</button>
         <button type="button" data-v="down">線の下</button>
       </div>
     </div>
 
-    <div class="card mini">
-      <h3>線と両端</h3>
+    <div class="card">
+      <h3>線と両はし</h3>
       <div class="grid2">
-        <label>線の太さ (mm)<input type="number" data-ax="lineWidth" min="0.1" step="0.1"></label>
+        <label>線の太さ mm<input type="number" data-ax="lineWidth" min="0.1" step="0.1"></label>
         <label>目盛りの線
           <select data-ax="tickStyle"><option value="solid">実線</option><option value="dashed">破線</option></select></label>
-        <label>左の余り (mm)<input type="number" data-ax="leadIn" min="0" step="1"></label>
-        <label>右の余り (mm)<input type="number" data-ax="leadOut" min="0" step="1"></label>
-        <label>左端の形
+        <label>左の余り mm<input type="number" data-ax="leadIn" min="0" step="1"></label>
+        <label>右の余り mm<input type="number" data-ax="leadOut" min="0" step="1"></label>
+        <label>左はしの形
           <select data-ax="endLeft">
             <option value="none">そのまま</option><option value="arrow">矢印</option>
-            <option value="cap">端点｜</option><option value="wave">波線（省略）</option>
+            <option value="cap">端点｜</option><option value="wave">省略（斜線）</option>
           </select></label>
-        <label>右端の形
+        <label>右はしの形
           <select data-ax="endRight">
             <option value="none">そのまま</option><option value="arrow">矢印</option>
-            <option value="cap">端点｜</option><option value="wave">波線（省略）</option>
+            <option value="cap">端点｜</option><option value="wave">省略（斜線）</option>
           </select></label>
       </div>
     </div>
 
-    <div class="card mini">
+    <div class="card">
       <h3>単位・□・色</h3>
       <div class="grid2">
-        <label>単位（右端）<input type="text" data-ax="unit" placeholder="kg" autocomplete="off"></label>
-        <label>単位の間隔 (mm)<input type="number" data-ax="unitGap" min="0" step="0.5"></label>
-        <label>□の幅の既定 (mm)<input type="number" data-ax="boxW" min="1" step="0.5"></label>
-        <label>□の高さの既定 (mm)<input type="number" data-ax="boxH" min="1" step="0.5"></label>
-        <label class="chk end"><input type="checkbox" data-ax="boxDashed"> □を破線にする</label>
+        <label>単位（右はし）<input type="text" data-ax="unit" placeholder="kg" autocomplete="off"></label>
+        <label>単位の間隔 mm<input type="number" data-ax="unitGap" min="0" step="0.5"></label>
+        <label>□の幅 mm<input type="number" data-ax="boxW" min="1" step="0.5"></label>
+        <label>□の高さ mm<input type="number" data-ax="boxH" min="1" step="0.5"></label>
         <label>線と文字の色<input type="color" data-ax="color"></label>
-        <label>引き出し矢印の色<input type="color" data-ax="pointerColor"></label>
+        <label>矢印の色<input type="color" data-ax="pointerColor"></label>
       </div>
+      <label class="chk"><input type="checkbox" data-ax="boxDashed"> □を破線にする</label>
     </div>
 
-    <div class="card mini" id="multiCard">
+    <div class="card" id="multiCard">
       <h3>2本のとき</h3>
-      <div class="grid2">
-        <label>線と線の間隔 (mm)<input type="number" data-doc="axisGap" min="2" step="1"></label>
-        <label class="chk end"><input type="checkbox" data-doc="joinLeft"> 左端（0）をつなぐ</label>
-        <label class="chk"><input type="checkbox" data-doc="syncTicks"> 目盛りを全部そろえる</label>
+      <div class="grid1">
+        <label>線と線の間隔 mm<input type="number" data-doc="axisGap" min="2" step="1"></label>
       </div>
+      <label class="chk"><input type="checkbox" data-doc="joinLeft"> 左はし（0）をたての線でつなぐ</label>
+      <label class="chk"><input type="checkbox" data-doc="syncTicks"> 目盛りの数と幅を全部そろえる</label>
       <div class="row">
-        <span class="hint">縦の破線</span>
+        <span class="hint">たての破線</span>
         <span id="connList" class="chips"></span>
       </div>
-      <p class="hint small">縦の破線は、目盛りをクリック →「縦の破線」で付け外しできます</p>
+      <p class="hint small">目盛りをクリック →「たての破線」で付け外しできます</p>
     </div>
 
-    <div class="card mini">
-      <h3>書き出しの設定</h3>
+    <div class="card">
+      <h3>書き出し</h3>
       <div class="grid1">
         <label>解像度
           <select data-doc="dpi">
@@ -226,27 +202,89 @@
             <option value="600">600dpi（高精細）</option>
           </select></label>
       </div>
+      <span class="flabel mt">まわりの余白 mm</span>
       <div class="grid4">
-        <label>上 (mm)<input type="number" data-doc="padT" min="0" step="1"></label>
-        <label>右 (mm)<input type="number" data-doc="padR" min="0" step="1"></label>
-        <label>下 (mm)<input type="number" data-doc="padB" min="0" step="1"></label>
-        <label>左 (mm)<input type="number" data-doc="padL" min="0" step="1"></label>
+        <label>上<input type="number" data-doc="padT" min="0" step="1"></label>
+        <label>右<input type="number" data-doc="padR" min="0" step="1"></label>
+        <label>下<input type="number" data-doc="padB" min="0" step="1"></label>
+        <label>左<input type="number" data-doc="padL" min="0" step="1"></label>
       </div>
     </div>
 
-    <div class="card mini">
+    <div class="card">
       <h3>用紙に置いたときの大きさ</h3>
       <div class="grid2">
         <label>用紙<select data-doc="paper" id="paperSel"></select></label>
-        <label>余白 (mm)<input type="number" data-doc="paperMargin" min="0" step="1"></label>
+        <label>余白 mm<input type="number" data-doc="paperMargin" min="0" step="1"></label>
       </div>
       <div class="pagewrap"><svg id="pagePreview" xmlns="http://www.w3.org/2000/svg"></svg></div>
       <p class="hint" id="pageInfo">—</p>
-      <p class="hint small">※ サイズ感の参考表示です。用紙に合わせる機能はありません。</p>
+      <p class="hint small">大きさの目安です。用紙に合わせる機能はありません。</p>
     </div>
+  </aside>
+</div>
 
-  </section>
-</main>
+<!-- ============ ステータスバー ============ -->
+<footer id="statusbar">
+  <span id="sizeInfo">—</span>
+  <div class="spacer"></div>
+  <label class="chk"><input type="checkbox" id="chkChecker" checked> 透過を市松で見る</label>
+  <span class="vr"></span>
+  <button id="btnZoomOut" class="iconbtn" title="小さく表示">−</button>
+  <span id="zoomInfo">100%</span>
+  <button id="btnZoomIn" class="iconbtn" title="大きく表示">＋</button>
+  <button id="btnZoomFit" class="quiet small" title="画面に合わせる">画面に合わせる</button>
+</footer>
+
+<!-- ============ クリックした目盛りのそばに出る編集窓 ============ -->
+<div id="tickPop" class="pop" hidden data-mode="">
+  <div class="pophead"><b id="tickWho">—</b><span class="spacer"></span><button id="popClose" class="iconbtn" title="閉じる（Esc）">×</button></div>
+  <div class="seg" id="modeSeg">
+    <button type="button" data-m="auto">数字</button>
+    <button type="button" data-m="box">□</button>
+    <button type="button" data-m="text">文字</button>
+    <button type="button" data-m="fraction">分数</button>
+    <button type="button" data-m="none">なし</button>
+  </div>
+
+  <div class="grid1 when-text">
+    <label>文字<input type="text" data-tick="text" placeholder="1億 / x / ア" autocomplete="off"></label>
+  </div>
+  <div class="grid3 when-fraction">
+    <label>整数部<input type="text" data-tick="whole" placeholder="帯分数" autocomplete="off"></label>
+    <label>分子<input type="text" data-tick="num" placeholder="5" autocomplete="off"></label>
+    <label>分母<input type="text" data-tick="den" placeholder="18" autocomplete="off"></label>
+  </div>
+  <div class="grid2 when-box">
+    <label>□の幅 mm<input type="number" data-tick="boxW" min="1" step="0.5" placeholder="既定"></label>
+    <label>□の高さ mm<input type="number" data-tick="boxH" min="1" step="0.5" placeholder="既定"></label>
+  </div>
+
+  <div class="poprow">
+    <label class="chk"><input type="checkbox" data-tick="pointer"> 矢印でさす</label>
+    <label class="inline">長さ<input type="number" data-tick="lift" min="0" step="1" class="w-tiny">mm</label>
+  </div>
+  <button id="btnMark" class="wide small">記号で問う（反対側に ア・イ・ウ ＋矢印）</button>
+
+  <details class="popmore">
+    <summary>そのほか</summary>
+    <div class="grid1">
+      <label>ふりがな<input type="text" data-tick="ruby" placeholder="エックス" autocomplete="off"></label>
+    </div>
+    <div class="poprow">
+      <span class="flabel">出す位置</span>
+      <div class="seg sm" data-seg-tick="side">
+        <button type="button" data-v="auto">自動</button>
+        <button type="button" data-v="up">線の上</button>
+        <button type="button" data-v="down">線の下</button>
+      </div>
+    </div>
+    <label class="chk"><input type="checkbox" data-tick="tickShow"> 目盛りの線を出す</label>
+    <label class="chk" id="connWrap" hidden><input type="checkbox" id="tickConnector"> たての破線</label>
+  </details>
+
+  <div class="popfoot"><button id="btnTickReset" class="quiet small">この目盛りを元に戻す</button></div>
+</div>
 
 <!-- ============ ライブラリ ============ -->
 <dialog id="libDlg">
@@ -254,9 +292,9 @@
     <h2>ライブラリ</h2>
     <input id="libSearch" type="search" placeholder="作品名・単元名でしぼる">
     <div class="spacer"></div>
-    <button id="btnLibExport">書き出し</button>
-    <button id="btnLibImport">読み込み</button>
-    <button id="btnLibClose">閉じる</button>
+    <button id="btnLibExport" class="quiet small">書き出し</button>
+    <button id="btnLibImport" class="quiet small">読み込み</button>
+    <button id="btnLibClose" class="secondary small">閉じる</button>
   </div>
   <div id="libGrid" class="libgrid"></div>
   <p class="hint" id="libInfo"></p>
@@ -265,6 +303,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="js/app.js?v=6"></script>
+<script type="module" src="js/app.js?v=8"></script>
 </body>
 </html>
